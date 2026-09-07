@@ -809,7 +809,8 @@ function currentMonthKey(){
 }
 let paymentsMonth = currentMonthKey();
 function renderPayments(main){
-  topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو ووحدة.');
+  topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو ووحدة، مع إمكانية تعديل مبلغ أي شهر لأي وحدة (مثال: فرق شهر أغسطس).',
+    '<button class="btn-ghost btn-sm" onclick="printPaymentsReport()">🖨 طباعة كشف الشهر</button>');
 
   const filters = document.createElement('div');
   filters.className='filters-row';
@@ -825,14 +826,18 @@ function renderPayments(main){
   [...state.units].sort((a,b)=>a.number.localeCompare(b.number,'ar')).forEach(u=>{
     const key = u.id+'|'+paymentsMonth;
     const rec = state.payments[key] || {paid:false, amount:u.monthlyFee||200};
+    const isCustom = rec.amount !== (u.monthlyFee||200);
     totalDue += Number(rec.amount);
     if(rec.paid) totalPaid += Number(rec.amount);
     rows += `<tr>
       <td><b>${u.number}</b></td>
       <td>${u.owner}</td>
-      <td>${fmt(rec.amount)} ر.س</td>
+      <td>${fmt(rec.amount)} ر.س${isCustom?' <span class="badge amber" style="margin-right:4px;">مُعدَّل</span>':''}</td>
       <td>${statusBadge(rec.paid?'مدفوعة':'غير مدفوعة')}</td>
-      <td><button class="icon-btn" onclick="togglePayment('${u.id}')">${rec.paid?'إلغاء الدفع':'تحديد كمدفوعة'}</button></td>
+      <td>
+        <button class="icon-btn" onclick="togglePayment('${u.id}')">${rec.paid?'إلغاء الدفع':'تحديد كمدفوعة'}</button>
+        <button class="icon-btn" onclick="openPaymentEditModal('${u.id}')">✎ تعديل المبلغ</button>
+      </td>
     </tr>`;
   });
   panel.innerHTML = `<div class="panel-title">تحصيل ${paymentsMonth} — ${fmt(totalPaid)} / ${fmt(totalDue)} ر.س</div>
@@ -848,10 +853,94 @@ async function togglePayment(unitId){
   state.payments[key] = rec;
   await saveState(); render();
 }
+function openPaymentEditModal(unitId){
+  const u = state.units.find(x=>x.id===unitId);
+  const key = unitId+'|'+paymentsMonth;
+  const rec = state.payments[key] || {paid:false, amount:u.monthlyFee||200};
+  showModal(`
+    <h3>تعديل دفعة ${esc(u.number)} — ${monthLabel(paymentsMonth)}</h3>
+    <p style="font-size:12.5px;color:var(--text-dim);margin-top:-6px;">استخدم هذا لتعديل مبلغ الاشتراك لهذا الشهر فقط لهذه الوحدة (مثلاً فرق التحصيل في شهر أغسطس)، دون التأثير على الاشتراك الشهري الأساسي لباقي الشهور.</p>
+    <div class="field"><label>مبلغ هذا الشهر (ر.س)</label><input id="f-payamount" type="number" value="${rec.amount}"></div>
+    <div class="field">
+      <label>حالة السداد</label>
+      <select id="f-paystatus">
+        <option value="1" ${rec.paid?'selected':''}>مدفوعة</option>
+        <option value="0" ${!rec.paid?'selected':''}>غير مدفوعة</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="resetPaymentToDefault('${unitId}')">إعادة للمبلغ الافتراضي</button>
+      <button class="btn" onclick="savePaymentEdit('${unitId}')">حفظ</button>
+    </div>
+  `);
+}
+async function savePaymentEdit(unitId){
+  const u = state.units.find(x=>x.id===unitId);
+  const key = unitId+'|'+paymentsMonth;
+  const amount = Number(document.getElementById('f-payamount').value) || 0;
+  const paid = document.getElementById('f-paystatus').value === '1';
+  state.payments[key] = { paid, amount };
+  await saveState(); closeModal(); render();
+}
+async function resetPaymentToDefault(unitId){
+  const u = state.units.find(x=>x.id===unitId);
+  const key = unitId+'|'+paymentsMonth;
+  const existing = state.payments[key] || {paid:false};
+  state.payments[key] = { paid: existing.paid, amount: u.monthlyFee||200 };
+  await saveState(); closeModal(); render();
+}
+function buildPaymentsReportHTML(){
+  const rows = [...state.units].sort((a,b)=>a.number.localeCompare(b.number,'ar')).map(u=>{
+    const key = u.id+'|'+paymentsMonth;
+    const rec = state.payments[key] || {paid:false, amount:u.monthlyFee||200};
+    return {u, rec};
+  });
+  const totalDue = rows.reduce((s,r)=>s+Number(r.rec.amount),0);
+  const totalPaid = rows.reduce((s,r)=>s+(r.rec.paid?Number(r.rec.amount):0),0);
+  const today = new Date().toLocaleDateString('ar-SA');
+  let tableRows = rows.map(({u,rec})=>`<tr>
+      <td>${esc(u.number)}</td>
+      <td>${esc(u.owner)}</td>
+      <td>${fmt(rec.amount)} ر.س</td>
+      <td style="color:${rec.paid?'#1f9d55':'#c0392b'};font-weight:700;">${rec.paid?'مدفوعة':'غير مدفوعة'}</td>
+    </tr>`).join('');
+  return `
+  <div class="stmt-page">
+    <div class="stmt-header">
+      <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
+      <div>
+        <div class="stmt-building">${esc(state.buildingName)}</div>
+        <div class="stmt-title">كشف تحصيل الدفعات الشهرية — ${monthLabel(paymentsMonth)}</div>
+      </div>
+      <div class="stmt-date">تاريخ الطباعة: ${today}</div>
+    </div>
+    <table class="stmt-info">
+      <tr><td><b>إجمالي المطلوب:</b> ${fmt(totalDue)} ر.س</td><td><b>إجمالي المحصّل:</b> ${fmt(totalPaid)} ر.س</td></tr>
+    </table>
+    <table class="stmt-table">
+      <thead><tr><th>الوحدة</th><th>العضو</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+      <tbody>${tableRows || '<tr><td colspan="4">لا توجد وحدات</td></tr>'}</tbody>
+    </table>
+    <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
+  </div>`;
+}
+function printPaymentsReport(){
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>كشف الدفعات - ${esc(monthLabel(paymentsMonth))}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${buildPaymentsReportHTML()}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
 
 /* ---------------- finance ---------------- */
 function renderFinance(main){
   topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة.',
+    '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printFinanceReport()">🖨 طباعة التقرير المالي</button>'+
     '<button class="btn" onclick="openTxModal()">+ إضافة حركة</button>');
 
   const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
@@ -882,6 +971,53 @@ function renderFinance(main){
   });
   panel.innerHTML = `<table><thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>ملاحظة</th><th>المبلغ</th><th>المرفق</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">لا توجد حركات</td></tr>'}</tbody></table>`;
   main.appendChild(panel);
+}
+function buildFinanceReportHTML(){
+  const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const today = new Date().toLocaleDateString('ar-SA');
+  const rows = [...state.transactions].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
+      <td>${esc(t.date)}</td>
+      <td style="font-weight:700;color:${t.type==='income'?'#1f9d55':'#c0392b'}">${t.type==='income'?'إيراد':'مصروف'}</td>
+      <td>${esc(t.category)}</td>
+      <td>${esc(t.note||'—')}</td>
+      <td style="font-weight:700;">${t.type==='income'?'+':'-'}${fmt(t.amount)} ر.س</td>
+    </tr>`).join('');
+  return `
+  <div class="stmt-page">
+    <div class="stmt-header">
+      <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
+      <div>
+        <div class="stmt-building">${esc(state.buildingName)}</div>
+        <div class="stmt-title">تقرير الإيرادات والمصروفات</div>
+      </div>
+      <div class="stmt-date">تاريخ الطباعة: ${today}</div>
+    </div>
+    <table class="stmt-info">
+      <tr>
+        <td><b>إجمالي الإيرادات:</b> ${fmt(income)} ر.س</td>
+        <td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>
+        <td><b>الصافي:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${fmt(income-expense)} ر.س</span></td>
+      </tr>
+    </table>
+    <table class="stmt-table">
+      <thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>ملاحظة</th><th>المبلغ</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5">لا توجد حركات</td></tr>'}</tbody>
+    </table>
+    <div class="stmt-footer">هذا التقرير صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
+  </div>`;
+}
+function printFinanceReport(){
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>التقرير المالي - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${buildFinanceReportHTML()}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
 }
 function openTxModal(){
   showModal(`
@@ -1020,6 +1156,7 @@ async function deleteEq(id){
 let mntFilterStatus = 'الكل';
 function renderMaintenance(main){
   topbar(main, state.buildingName, 'الصيانة', 'سجّل طلب الصيانة، حدّد موعده، وتابع تنفيذه حتى الإغلاق.',
+    '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printMaintenanceReport()">🖨 طباعة كل الطلبات</button>'+
     '<button class="btn" onclick="openMntModal()">+ طلب صيانة جديد</button>');
 
   const info = document.createElement('div');
@@ -1090,6 +1227,7 @@ function renderMntGrid(main, search){
         <div class="req-actions">
           ${m.status!=='مكتملة' ? `<button class="btn btn-sm" onclick="advanceMnt('${m.id}')">${m.status==='طلب جديد'?'بدء التنفيذ':'إغلاق كمكتمل'}</button>` : ''}
           <button class="btn-ghost btn-sm" onclick="openMntModal('${m.id}')">تعديل</button>
+          <button class="btn-ghost btn-sm" onclick="printMntItem('${m.id}')">🖨 طباعة</button>
           <button class="btn-danger btn-sm" onclick="deleteMnt('${m.id}')">حذف</button>
         </div>
       `;
@@ -1098,6 +1236,63 @@ function renderMntGrid(main, search){
   }
   wrap.innerHTML = '';
   wrap.appendChild(grid);
+}
+function buildMntCardHTML(m){
+  return `
+    <table class="stmt-info">
+      <tr><td><b>عنوان الطلب:</b> ${esc(m.title)}</td><td><b>الحالة:</b> ${esc(m.status)}</td></tr>
+      <tr><td><b>الموقع:</b> ${esc(m.location||'—')}</td><td><b>الوحدة:</b> ${esc(m.unit||'—')}</td></tr>
+      <tr><td><b>نوع الصيانة:</b> ${esc(m.type)}</td><td><b>الأولوية:</b> ${esc(m.priority)}</td></tr>
+      <tr><td><b>تاريخ البلاغ:</b> ${esc(m.reportDate)}</td><td><b>تاريخ الإنجاز:</b> ${esc(m.execDate||'—')}</td></tr>
+    </table>
+    <div class="stmt-section-title">الوصف</div>
+    <p style="font-size:13px;line-height:1.7;">${esc(m.desc||'—')}</p>`;
+}
+function buildMntReportHTML(list, title){
+  const today = new Date().toLocaleDateString('ar-SA');
+  const body = list.map(m=>`
+    <div class="stmt-page">
+      <div class="stmt-header">
+        <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
+        <div>
+          <div class="stmt-building">${esc(state.buildingName)}</div>
+          <div class="stmt-title">${esc(title)}</div>
+        </div>
+        <div class="stmt-date">تاريخ الطباعة: ${today}</div>
+      </div>
+      ${buildMntCardHTML(m)}
+      <div class="stmt-footer">هذا المستند صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
+    </div>`).join('\n');
+  return body;
+}
+function printMntItem(id){
+  const m = state.maintenance.find(x=>x.id===id);
+  if(!m) return;
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>طلب صيانة - ${esc(m.title)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${buildMntReportHTML([m], 'طلب صيانة')}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+function printMaintenanceReport(){
+  if(state.maintenance.length===0){ alert('لا توجد طلبات صيانة لطباعتها'); return; }
+  let list = state.maintenance;
+  if(mntFilterStatus!=='الكل') list = list.filter(m=>m.status===mntFilterStatus);
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>طلبات الصيانة - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${buildMntReportHTML(list, 'طلب صيانة')}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),400);}<\/script>
+    </body></html>`);
+  w.document.close();
 }
 async function advanceMnt(id){
   const m = state.maintenance.find(x=>x.id===id);
