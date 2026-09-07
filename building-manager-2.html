@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إدارة العمارة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0f1b2d;
+    --navy-2:#152238;
+    --teal:#0f9c8f;
+    --teal-dark:#0b7d73;
+    --teal-tint:#e3f6f3;
+    --bg:#f5f7f9;
+    --card:#ffffff;
+    --border:#e6e9ee;
+    --text:#16202c;
+    --text-dim:#6b7684;
+    --amber:#f6c453;
+    --amber-tint:#fdf2da;
+    --blue-tint:#e6eefc;
+    --blue:#3b6fd6;
+    --green-tint:#e5f7ec;
+    --green:#1f9d55;
+    --red:#e0524a;
+    --red-tint:#fbe9e8;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Tajawal', system-ui, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+  }
+  #app{display:flex;min-height:100vh;}
+
+  /* Sidebar */
+  .sidebar{
+    width:230px;
+    background:var(--navy);
+    color:#cfd8e3;
+    display:flex;
+    flex-direction:column;
+    flex-shrink:0;
+    padding:18px 14px;
+  }
+  .sidebar-header{
+    display:flex;align-items:center;gap:10px;
+    padding:6px 6px 18px 6px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    margin-bottom:14px;
+  }
+  .sidebar-logo{
+    width:34px;height:34px;border-radius:9px;
+    background:#0a1420;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;color:#fff;font-size:15px;flex-shrink:0;
+    overflow:hidden;
+  }
+  .sidebar-logo img{width:100%;height:100%;object-fit:contain;}
+  .sidebar-title{font-size:13px;font-weight:700;color:#fff;line-height:1.3;}
+  .sidebar-sub{font-size:10.5px;color:#8b97a8;margin-top:1px;}
+  .nav{display:flex;flex-direction:column;gap:3px;flex:1;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;border-radius:9px;
+    font-size:13.5px;font-weight:500;
+    color:#b8c2d1;cursor:pointer;
+    border:none;background:none;text-align:right;width:100%;
+    font-family:inherit;
+    transition:background .15s,color .15s;
+  }
+  .nav-item .ic{width:17px;text-align:center;font-size:14px;flex-shrink:0;}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+  .nav-item.active{background:var(--teal);color:#fff;}
+  .sidebar-footer{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:8px;}
+  .sidebar-user{
+    display:flex;align-items:center;gap:9px;
+    padding:8px 6px;border-radius:9px;margin-bottom:8px;
+  }
+  .avatar{width:30px;height:30px;border-radius:50%;background:#26364d;display:flex;align-items:center;justify-content:center;font-size:12px;color:#cfd8e3;flex-shrink:0;}
+  .sidebar-user-name{font-size:12px;color:#fff;font-weight:600;}
+  .sidebar-user-role{font-size:10.5px;color:#8b97a8;}
+
+  /* Main */
+  .main{flex:1;padding:26px 30px;min-width:0;overflow-x:hidden;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:20px;}
+  .eyebrow{font-size:12.5px;color:var(--text-dim);font-weight:500;}
+  h1{font-size:24px;font-weight:800;margin:2px 0 4px 0;}
+  .page-desc{color:var(--text-dim);font-size:13px;margin:0;}
+  .btn{
+    background:var(--teal);color:#fff;border:none;border-radius:10px;
+    padding:11px 18px;font-size:13.5px;font-weight:700;cursor:pointer;
+    font-family:inherit;display:inline-flex;align-items:center;gap:6px;
+    transition:background .15s;
+  }
+  .btn:hover{background:var(--teal-dark);}
+  .btn-ghost{background:#fff;color:var(--text);border:1px solid var(--border);}
+  .btn-ghost:hover{background:#f4f6f8;}
+  .btn-danger{background:var(--red-tint);color:var(--red);}
+  .btn-danger:hover{background:#f6d6d3;}
+  .btn-sm{padding:7px 12px;font-size:12.5px;border-radius:8px;}
+
+  .info-banner{
+    background:var(--blue-tint);border:1px solid #d3e0fa;color:#2b4c8f;
+    padding:13px 16px;border-radius:12px;font-size:13px;margin-bottom:18px;
+  }
+
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .stat-card .num{font-size:26px;font-weight:800;margin-top:6px;}
+  .stat-card .lbl{font-size:12.5px;color:var(--text-dim);font-weight:600;}
+  .stat-card.tint-green{background:var(--green-tint);border-color:#cdeedb;}
+  .stat-card.tint-blue{background:var(--blue-tint);border-color:#d3e0fa;}
+  .stat-card.tint-amber{background:var(--amber-tint);border-color:#f3e3b8;}
+
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:16px;}
+  .panel-title{font-weight:700;font-size:14.5px;margin-bottom:14px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:right;color:var(--text-dim);font-weight:600;font-size:12px;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:10px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#fafbfc;}
+
+  .badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:700;}
+  .badge.green{background:var(--green-tint);color:var(--green);}
+  .badge.amber{background:var(--amber-tint);color:#a6791b;}
+  .badge.blue{background:var(--blue-tint);color:var(--blue);}
+  .badge.red{background:var(--red-tint);color:var(--red);}
+  .badge.gray{background:#eef0f3;color:#5c6675;}
+
+  .filters-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+  .filters-row select, .filters-row input{
+    border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:13px;
+    font-family:inherit;background:#fff;color:var(--text);
+  }
+  .filters-row input[type=text]{flex:1;min-width:180px;}
+
+  .req-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  .req-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+  .req-tags{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .req-title{font-weight:700;font-size:15px;margin-bottom:4px;}
+  .req-desc{font-size:12.5px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;}
+  .req-meta{background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12px;color:#3a4453;}
+  .req-meta-row{display:flex;justify-content:space-between;padding:3px 0;}
+  .req-meta-row b{font-weight:600;color:var(--text);}
+  .req-actions{display:flex;gap:8px;margin-top:12px;}
+
+  .icon-btn{background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;padding:4px 6px;border-radius:6px;}
+  .icon-btn:hover{background:#eef0f3;color:var(--text);}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,27,45,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .overlay.open{display:flex;}
+  .modal{background:#fff;border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:88vh;overflow-y:auto;}
+  .modal h3{margin:0 0 16px 0;font-size:17px;font-weight:800;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;}
+  .field input,.field select,.field textarea{
+    width:100%;border:1px solid var(--border);border-radius:9px;padding:9px 11px;
+    font-size:13.5px;font-family:inherit;color:var(--text);background:#fff;
+  }
+  .field textarea{resize:vertical;min-height:60px;}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;}
+  .modal-actions .btn,.modal-actions .btn-ghost{flex:1;justify-content:center;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+  .empty{text-align:center;color:var(--text-dim);font-size:13px;padding:30px 10px;}
+
+  /* Login / setup screen */
+  .auth-wrap{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:var(--navy);padding:20px;
+  }
+  .auth-card{
+    background:#fff;border-radius:18px;padding:34px 30px;width:100%;max-width:380px;
+    box-shadow:0 20px 50px rgba(0,0,0,.25);
+  }
+  .auth-logo{
+    width:56px;height:56px;border-radius:14px;margin:0 auto 16px auto;
+    background:#0a1420;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:19px;
+  }
+  .auth-logo img{width:100%;height:100%;object-fit:contain;}
+  .auth-card h2{text-align:center;font-size:19px;font-weight:800;margin:0 0 4px 0;}
+  .auth-card p.sub{text-align:center;color:var(--text-dim);font-size:12.5px;margin:0 0 22px 0;}
+  .auth-error{
+    background:var(--red-tint);color:var(--red);font-size:12.5px;border-radius:9px;
+    padding:9px 12px;margin-bottom:14px;display:none;
+  }
+  .auth-error.show{display:block;}
+  .auth-note{
+    background:var(--blue-tint);color:#2b4c8f;font-size:11.5px;border-radius:9px;
+    padding:9px 12px;margin-top:16px;line-height:1.6;
+  }
+  .auth-links{text-align:center;margin-top:14px;}
+  .auth-links button{
+    background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;
+    font-family:inherit;text-decoration:underline;
+  }
+
+  @media(max-width:900px){
+    #app{flex-direction:column;}
+    .sidebar{width:100%;flex-direction:row;overflow-x:auto;align-items:center;}
+    .sidebar-header{border:none;margin:0;padding:0 10px 0 0;}
+    .nav{flex-direction:row;}
+    .sidebar-footer{display:none;}
+    .stats-row{grid-template-columns:repeat(2,1fr);}
+    .req-grid{grid-template-columns:1fr;}
+    .main{padding:18px 14px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="authScreen" class="auth-wrap"></div>
+
+<div id="app" style="display:none;">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo" id="bldgInitial"><img src="" id="bldgLogoImg" alt="شعار"></div>
+      <div>
+        <div class="sidebar-title" id="bldgName">عمارتي</div>
+        <div class="sidebar-sub">لوحة رئيس اتحاد الملاك</div>
+      </div>
+    </div>
+    <div class="nav" id="navList"></div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="avatar">👤</div>
+        <div>
+          <div class="sidebar-user-name" id="authUserLabel">رئيس اتحاد الملاك</div>
+          <div class="sidebar-user-role">manager@building.local</div>
+        </div>
+      </div>
+      <button class="nav-item" onclick="logout()"><span class="ic">⏻</span><span>تسجيل الخروج</span></button>
+    </div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modalBody"></div></div>
+
+<script>
+/* ---------------- storage helpers ---------------- */
+const STORE_KEY = 'building30-state-v1';
+let state = null;
+
+const LOGO_URI = "data:image/png;base64,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nGkLGpo7XAV52eOnlJemrP1412VpbteCCWVF4+022/hIJAJ19a19O3ZVfR8AIqnO1CnTKsZf4vMHWEdn38RFc6fO7+kbvN4fCFUX5ufkZGak5WjBQNi+98Cf31qz+YOj/Xx5Ga7yjHT3nIrx4/JtsgzhcAQOHGps37K7+gdwbIUJNCs9/bL83KyUiaVFSyRKQVFV6O4bUHftO/jnF1av+Ydx5yw3lFVMGHeVw26HzI27JgFA78l0TYp64KPA+WcvWjx98sQlTGVFkkT8fQNDre98uG3D4OBg09H8D2654ZI7MlJT5m7dUfXE0kWz7vZ4hvb+/d/vPwXHUBV12YVnzpsyofS+6sMNzxXmZE9LdadMf/ejD3+seqWUFWcvvCA3O700FAr7tmzf955evFFSUuK69JwFP+LIA7X1re8vmDX1G81tHc/9++2PNl147hlnTZ1QMp9Qaq9vat/71prN7x4j0WD8+IIJZ58x/7zszIwiv98/+P6m7W83N3c1HOv/Z/z4jMw5U2evKCvOnyJJkjuiqp6amrptG7ZVbrXY3XH7TZf/gEqS7Z31u37W2toaFFe4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAwImG/x9Cskn7o77NSAAAAABJRU5ErkJggg==";
+const REAL_DATA = JSON.parse('{"owners": [{"id": "o1", "name": "ماهر يوسف عطار", "phone": "0507505068"}, {"id": "o2", "name": "محمد عمر علي الربيعي", "phone": "0504657832"}, {"id": "o3", "name": "موسى محمد عثمان محمد", "phone": "0562098346"}, {"id": "o4", "name": "نوره سعيد عبدالله الزهراني", "phone": "0504709840"}, {"id": "o5", "name": "يعقوب محمد فواز الزهراني", "phone": "0556621630"}, {"id": "o6", "name": "عوض ناشر سلمان الحربي", "phone": "0502277359"}, {"id": "o7", "name": "ناصر يحي محمد الفقيه", "phone": "0556698797"}, {"id": "o8", "name": "عبدالله احمد بن سفر الغامدي", "phone": "0504258966"}, {"id": "o9", "name": "ياسر يسلم شراره", "phone": "0556691444"}, {"id": "o10", "name": "يوسف بن عبيد بن فليح الحربي", "phone": "0501736192"}, {"id": "o11", "name": "فاطمه حامد منور الجدعاني", "phone": "0537975061"}, {"id": "o12", "name": "ناهد الحسن علي العيسى", "phone": "0563997667"}, {"id": "o13", "name": "عبد الرحمن معضد سليمان المطيري", "phone": "0504676795"}, {"id": "o14", "name": "فيصل عبدالله يحي منشي", "phone": "0544775687"}, {"id": "o15", "name": "محمد صالح ابن عبدالله العمري", "phone": "0582207277"}, {"id": "o16", "name": "فائزه علي عبدالله بامخبش", "phone": "0504307846"}, {"id": "o17", "name": "عبدالله محمد رشاد حلمي", "phone": "0505660247"}, {"id": "o18", "name": "حليمة بن عبدالله القرني", "phone": "0501543850"}, {"id": "o19", "name": "عبير علي عبدالله با مخبش", "phone": "0504307994"}, {"id": "o20", "name": "تركي طلال علي عسيري", "phone": "0553571102"}, {"id": "o21", "name": "هتان عبد الشكور عبد الحميد عطار", "phone": "0567488453"}, {"id": "o22", "name": "رأفت احمد محمد شرف", "phone": "0555661655"}, {"id": "o23", "name": "شبيلي سعيد شبيلي القرني", "phone": "0500124312"}, {"id": "o24", "name": "يحيى هضبان العسيري", "phone": "0533326454"}, {"id": "o25", "name": "خالد علي حمدان المعاوي", "phone": "0545454266"}, {"id": "o26", "name": "طارق علي حسن أكبر", "phone": "0548447783"}, {"id": "o27", "name": "عماد منصور ابن صالح ال فرحه", "phone": "0544557731"}, {"id": "o28", "name": "مؤيد هاشم حامد السريحي", "phone": "0548889260"}, {"id": "o29", "name": "رؤى بن صالح بخاري", "phone": "0506691044"}, {"id": "o30", "name": "ماجد نبيل بن احمد باعيسى", "phone": "0567788799"}], "units": [{"id": "u1", "number": "وحدة 101", "floor": 1, "owner": "ماهر يوسف عطار", "phone": "0507505068", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u2", "number": "وحدة 102", "floor": 1, "owner": "محمد عمر علي الربيعي", "phone": "0504657832", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u3", "number": "وحدة 201", "floor": 2, "owner": "موسى محمد عثمان محمد", "phone": "0562098346", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u4", "number": "وحدة 202", "floor": 2, "owner": "نوره سعيد عبدالله الزهراني", "phone": "0504709840", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u5", "number": "وحدة 203", "floor": 2, "owner": "يعقوب محمد فواز الزهراني", "phone": "0556621630", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u6", "number": "وحدة 204", "floor": 2, "owner": "عوض ناشر سلمان الحربي", "phone": "0502277359", "monthlyFee": 200, "collected": 0, "arrearsPrevious": -2160, "duesThisYear": -800, "totalDue": -2960}, {"id": "u7", "number": "وحدة 301", "floor": 3, "owner": "ناصر يحي محمد الفقيه", "phone": "0556698797", "monthlyFee": 200, "collected": 0, "arrearsPrevious": -518, "duesThisYear": -800, "totalDue": -1318}, {"id": "u8", "number": "وحدة 302", "floor": 3, "owner": "عبدالله احمد بن سفر الغامدي", "phone": "0504258966", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u9", "number": "وحدة 303", "floor": 3, "owner": "ياسر يسلم شراره", "phone": "0556691444", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u10", "number": "وحدة 304", "floor": 3, "owner": "يوسف بن عبيد بن فليح الحربي", "phone": "0501736192", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u11", "number": "وحدة 401", "floor": 4, "owner": "فاطمه حامد منور الجدعاني", "phone": "0537975061", "monthlyFee": 200, "collected": 600, "arrearsPrevious": 0, "duesThisYear": -200, "totalDue": -200}, {"id": "u12", "number": "وحدة 402", "floor": 4, "owner": "ناهد الحسن علي العيسى", "phone": "0563997667", "monthlyFee": 200, "collected": 400, "arrearsPrevious": 0, "duesThisYear": -400, "totalDue": -400}, {"id": "u13", "number": "وحدة 403", "floor": 4, "owner": "عبد الرحمن معضد سليمان المطيري", "phone": "0504676795", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u14", "number": "وحدة 404", "floor": 4, "owner": "فيصل عبدالله يحي منشي", "phone": "0544775687", "monthlyFee": 200, "collected": 600, "arrearsPrevious": 0, "duesThisYear": -200, "totalDue": -200}, {"id": "u15", "number": "وحدة 501", "floor": 5, "owner": "محمد صالح ابن عبدالله العمري", "phone": "0582207277", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u16", "number": "وحدة 502", "floor": 5, "owner": "فائزه علي عبدالله بامخبش", "phone": "0504307846", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u17", "number": "وحدة 503", "floor": 5, "owner": "عبدالله محمد رشاد حلمي", "phone": "0505660247", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u18", "number": "وحدة 504", "floor": 5, "owner": "حليمة بن عبدالله القرني", "phone": "0501543850", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u19", "number": "وحدة 601", "floor": 6, "owner": "عبير علي عبدالله با مخبش", "phone": "0504307994", "monthlyFee": 200, "collected": 820, "arrearsPrevious": 0, "duesThisYear": 20, "totalDue": 20}, {"id": "u20", "number": "وحدة 602", "floor": 6, "owner": "تركي طلال علي عسيري", "phone": "0553571102", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u21", "number": "وحدة 603", "floor": 6, "owner": "هتان عبد الشكور عبد الحميد عطار", "phone": "0567488453", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u22", "number": "وحدة 604", "floor": 6, "owner": "رأفت احمد محمد شرف", "phone": "0555661655", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u23", "number": "وحدة 701", "floor": 7, "owner": "شبيلي سعيد شبيلي القرني", "phone": "0500124312", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u24", "number": "وحدة 702", "floor": 7, "owner": "يحيى هضبان العسيري", "phone": "0533326454", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}, {"id": "u25", "number": "وحدة 703", "floor": 7, "owner": "خالد علي حمدان المعاوي", "phone": "0545454266", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u26", "number": "وحدة 704", "floor": 7, "owner": "طارق علي حسن أكبر", "phone": "0548447783", "monthlyFee": 200, "collected": 1000, "arrearsPrevious": 0, "duesThisYear": 200, "totalDue": 200}, {"id": "u27", "number": "وحدة 801", "floor": 8, "owner": "عماد منصور ابن صالح ال فرحه", "phone": "0544557731", "monthlyFee": 200, "collected": 0, "arrearsPrevious": -2700, "duesThisYear": -800, "totalDue": -3500}, {"id": "u28", "number": "وحدة 802", "floor": 8, "owner": "مؤيد هاشم حامد السريحي", "phone": "0548889260", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u29", "number": "وحدة 803", "floor": 8, "owner": "رؤى بن صالح بخاري", "phone": "0506691044", "monthlyFee": 200, "collected": 800, "arrearsPrevious": 0, "duesThisYear": 0, "totalDue": 0}, {"id": "u30", "number": "وحدة 804", "floor": 8, "owner": "ماجد نبيل بن احمد باعيسى", "phone": "0567788799", "monthlyFee": 200, "collected": 980, "arrearsPrevious": 0, "duesThisYear": 180, "totalDue": 180}], "payments": {"u1|2026-04": {"paid": true, "amount": 200}, "u1|2026-05": {"paid": true, "amount": 200}, "u1|2026-06": {"paid": true, "amount": 200}, "u1|2026-07": {"paid": true, "amount": 200}, "u2|2026-04": {"paid": true, "amount": 200}, "u2|2026-05": {"paid": true, "amount": 200}, "u2|2026-06": {"paid": true, "amount": 200}, "u2|2026-07": {"paid": true, "amount": 200}, "u3|2026-04": {"paid": true, "amount": 200}, "u3|2026-05": {"paid": true, "amount": 200}, "u3|2026-06": {"paid": true, "amount": 200}, "u3|2026-07": {"paid": true, "amount": 200}, "u4|2026-04": {"paid": true, "amount": 200}, "u4|2026-05": {"paid": true, "amount": 200}, "u4|2026-06": {"paid": true, "amount": 200}, "u4|2026-07": {"paid": true, "amount": 200}, "u5|2026-04": {"paid": true, "amount": 200}, "u5|2026-05": {"paid": true, "amount": 200}, "u5|2026-06": {"paid": true, "amount": 200}, "u5|2026-07": {"paid": true, "amount": 200}, "u8|2026-04": {"paid": true, "amount": 200}, "u8|2026-05": {"paid": true, "amount": 200}, "u8|2026-06": {"paid": true, "amount": 200}, "u8|2026-07": {"paid": true, "amount": 200}, "u8|2026-08": {"paid": true, "amount": 180}, "u9|2026-04": {"paid": true, "amount": 200}, "u9|2026-05": {"paid": true, "amount": 200}, "u9|2026-06": {"paid": true, "amount": 200}, "u9|2026-07": {"paid": true, "amount": 200}, "u9|2026-08": {"paid": true, "amount": 180}, "u10|2026-04": {"paid": true, "amount": 200}, "u10|2026-05": {"paid": true, "amount": 200}, "u10|2026-06": {"paid": true, "amount": 200}, "u10|2026-07": {"paid": true, "amount": 200}, "u11|2026-05": {"paid": true, "amount": 200}, "u11|2026-06": {"paid": true, "amount": 200}, "u11|2026-07": {"paid": true, "amount": 200}, "u12|2026-06": {"paid": true, "amount": 200}, "u12|2026-07": {"paid": true, "amount": 200}, "u13|2026-04": {"paid": true, "amount": 200}, "u13|2026-05": {"paid": true, "amount": 200}, "u13|2026-06": {"paid": true, "amount": 200}, "u13|2026-07": {"paid": true, "amount": 200}, "u14|2026-06": {"paid": true, "amount": 200}, "u14|2026-07": {"paid": true, "amount": 200}, "u14|2026-05": {"paid": true, "amount": 200}, "u15|2026-04": {"paid": true, "amount": 200}, "u15|2026-05": {"paid": true, "amount": 200}, "u15|2026-06": {"paid": true, "amount": 200}, "u15|2026-07": {"paid": true, "amount": 200}, "u15|2026-08": {"paid": true, "amount": 180}, "u16|2026-04": {"paid": true, "amount": 200}, "u16|2026-05": {"paid": true, "amount": 200}, "u16|2026-06": {"paid": true, "amount": 200}, "u16|2026-07": {"paid": true, "amount": 200}, "u16|2026-08": {"paid": true, "amount": 180}, "u17|2026-04": {"paid": true, "amount": 200}, "u17|2026-05": {"paid": true, "amount": 200}, "u17|2026-06": {"paid": true, "amount": 200}, "u17|2026-07": {"paid": true, "amount": 200}, "u17|2026-08": {"paid": true, "amount": 180}, "u18|2026-04": {"paid": true, "amount": 200}, "u18|2026-05": {"paid": true, "amount": 200}, "u18|2026-06": {"paid": true, "amount": 200}, "u18|2026-07": {"paid": true, "amount": 200}, "u19|2026-04": {"paid": true, "amount": 200}, "u19|2026-05": {"paid": true, "amount": 200}, "u19|2026-06": {"paid": true, "amount": 200}, "u19|2026-07": {"paid": true, "amount": 200}, "u19|2026-08": {"paid": true, "amount": 20}, "u20|2026-04": {"paid": true, "amount": 200}, "u20|2026-05": {"paid": true, "amount": 200}, "u20|2026-06": {"paid": true, "amount": 200}, "u20|2026-07": {"paid": true, "amount": 200}, "u21|2026-04": {"paid": true, "amount": 200}, "u21|2026-05": {"paid": true, "amount": 200}, "u21|2026-06": {"paid": true, "amount": 200}, "u21|2026-07": {"paid": true, "amount": 200}, "u22|2026-04": {"paid": true, "amount": 200}, "u22|2026-05": {"paid": true, "amount": 200}, "u22|2026-06": {"paid": true, "amount": 200}, "u22|2026-07": {"paid": true, "amount": 200}, "u22|2026-08": {"paid": true, "amount": 180}, "u23|2026-04": {"paid": true, "amount": 200}, "u23|2026-05": {"paid": true, "amount": 200}, "u23|2026-06": {"paid": true, "amount": 200}, "u23|2026-07": {"paid": true, "amount": 200}, "u23|2026-08": {"paid": true, "amount": 180}, "u24|2026-04": {"paid": true, "amount": 200}, "u24|2026-05": {"paid": true, "amount": 200}, "u24|2026-06": {"paid": true, "amount": 200}, "u24|2026-07": {"paid": true, "amount": 200}, "u24|2026-08": {"paid": true, "amount": 180}, "u25|2026-04": {"paid": true, "amount": 200}, "u25|2026-05": {"paid": true, "amount": 200}, "u25|2026-06": {"paid": true, "amount": 200}, "u25|2026-07": {"paid": true, "amount": 200}, "u26|2026-04": {"paid": true, "amount": 200}, "u26|2026-05": {"paid": true, "amount": 200}, "u26|2026-06": {"paid": true, "amount": 200}, "u26|2026-07": {"paid": true, "amount": 200}, "u26|2026-08": {"paid": true, "amount": 200}, "u28|2026-04": {"paid": true, "amount": 200}, "u28|2026-05": {"paid": true, "amount": 200}, "u28|2026-06": {"paid": true, "amount": 200}, "u28|2026-07": {"paid": true, "amount": 200}, "u29|2026-04": {"paid": true, "amount": 200}, "u29|2026-05": {"paid": true, "amount": 200}, "u29|2026-06": {"paid": true, "amount": 200}, "u29|2026-07": {"paid": true, "amount": 200}, "u30|2026-04": {"paid": true, "amount": 200}, "u30|2026-05": {"paid": true, "amount": 200}, "u30|2026-06": {"paid": true, "amount": 200}, "u30|2026-07": {"paid": true, "amount": 200}, "u30|2026-08": {"paid": true, "amount": 180}}}');
+
+function defaultState(){
+  const now = new Date();
+  return {
+    buildingName: 'الجوهرة ريزيدنس 33',
+    owners: REAL_DATA.owners,
+    units: REAL_DATA.units,
+    payments: REAL_DATA.payments,
+    transactions: [],
+    equipment: [],
+    maintenance: [],
+    nextIds: {owner:31, unit:31, tx:1, eq:1, mnt:1}
+  };
+}
+
+const hasClaudeStorage = () => typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+let hasLocalStorage = false;
+try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); hasLocalStorage = true; }catch(e){ hasLocalStorage = false; }
+
+// Generic persistence: prefer Claude's storage (works inside claude.ai),
+// fall back to the browser's own localStorage (works when the file is opened
+// directly / hosted anywhere else), so data survives either way.
+async function storageGet(key){
+  if(hasClaudeStorage()){
+    try{ const r = await window.storage.get(key, false); if(r && r.value) return r.value; }catch(e){}
+  }
+  if(hasLocalStorage){
+    try{ const v = localStorage.getItem(key); if(v) return v; }catch(e){}
+  }
+  return null;
+}
+async function storageSet(key, value){
+  if(hasClaudeStorage()){
+    try{ await window.storage.set(key, value, false); }catch(e){}
+  }
+  if(hasLocalStorage){
+    try{ localStorage.setItem(key, value); }catch(e){}
+  }
+}
+async function storageRemove(key){
+  if(hasClaudeStorage()){
+    try{ await window.storage.delete(key, false); }catch(e){}
+  }
+  if(hasLocalStorage){
+    try{ localStorage.removeItem(key); }catch(e){}
+  }
+}
+
+async function loadState(){
+  const raw = await storageGet(STORE_KEY);
+  if(raw){ try{ state = JSON.parse(raw); return; }catch(e){} }
+  state = defaultState();
+  await saveState();
+}
+async function saveState(){
+  await storageSet(STORE_KEY, JSON.stringify(state));
+}
+
+/* ---------------- auth (basic privacy gate, not real security) ---------------- */
+const AUTH_KEY = 'building30-auth-v1';
+const SESSION_KEY = 'building30-session';
+
+async function sha256(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function getAuth(){
+  const raw = await storageGet(AUTH_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+async function setAuth(username, password){
+  const hash = await sha256(password);
+  await storageSet(AUTH_KEY, JSON.stringify({username, hash}));
+}
+function isSessionActive(){
+  try{ return sessionStorage.getItem(SESSION_KEY) === '1'; }catch(e){ return false; }
+}
+function setSessionActive(v){
+  try{ if(v) sessionStorage.setItem(SESSION_KEY,'1'); else sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+function logout(){
+  setSessionActive(false);
+  location.reload();
+}
+
+function showAuthScreen(mode, auth, errorMsg){
+  document.getElementById('app').style.display = 'none';
+  const el = document.getElementById('authScreen');
+  el.style.display = 'flex';
+
+  if(mode === 'setup'){
+    el.innerHTML = `
+      <div class="auth-card">
+        <div class="auth-logo"><img src="${LOGO_URI}" alt="شعار"></div>
+        <h2>إعداد الدخول</h2>
+        <p class="sub">أول استخدام — أنشئ اسم مستخدم وكلمة مرور للدخول إلى لوحة العمارة</p>
+        <div class="auth-error ${errorMsg?'show':''}">${errorMsg||''}</div>
+        <div class="field"><label>اسم المستخدم</label><input id="au-user" autocomplete="username"></div>
+        <div class="field"><label>كلمة المرور</label><input id="au-pass" type="password" autocomplete="new-password"></div>
+        <div class="field"><label>تأكيد كلمة المرور</label><input id="au-pass2" type="password" autocomplete="new-password"></div>
+        <button class="btn" style="width:100%;justify-content:center;" onclick="submitSetup()">إنشاء وتسجيل الدخول</button>
+        <div class="auth-note">هذه حماية بسيطة على مستوى المتصفح لإبعاد الزوار العابرين، وليست تشفيرًا حقيقيًا — أي شخص يملك الوصول لملف الصفحة يقدر يتجاوزها تقنيًا.</div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="auth-card">
+        <div class="auth-logo"><img src="${LOGO_URI}" alt="شعار"></div>
+        <h2>تسجيل الدخول</h2>
+        <p class="sub">${state && state.buildingName ? state.buildingName : 'لوحة إدارة العمارة'}</p>
+        <div class="auth-error ${errorMsg?'show':''}">${errorMsg||''}</div>
+        <div class="field"><label>اسم المستخدم</label><input id="au-user" autocomplete="username"></div>
+        <div class="field"><label>كلمة المرور</label><input id="au-pass" type="password" autocomplete="current-password"></div>
+        <button class="btn" style="width:100%;justify-content:center;" onclick="submitLogin()">دخول</button>
+        <div class="auth-links"><button onclick="confirmReset()">نسيت البيانات؟ إعادة تعيين الدخول</button></div>
+      </div>`;
+  }
+  const first = el.querySelector('#au-user');
+  if(first) setTimeout(()=>first.focus(), 50);
+  el.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ mode==='setup' ? submitSetup() : submitLogin(); } });
+  });
+}
+
+async function submitSetup(){
+  const user = document.getElementById('au-user').value.trim();
+  const pass = document.getElementById('au-pass').value;
+  const pass2 = document.getElementById('au-pass2').value;
+  if(!user || !pass){ showAuthScreen('setup', null, 'الرجاء تعبئة اسم المستخدم وكلمة المرور'); return; }
+  if(pass.length < 4){ showAuthScreen('setup', null, 'كلمة المرور قصيرة جدًا (٤ أحرف على الأقل)'); return; }
+  if(pass !== pass2){ showAuthScreen('setup', null, 'كلمتا المرور غير متطابقتين'); return; }
+  await setAuth(user, pass);
+  setSessionActive(true);
+  await enterApp();
+}
+async function submitLogin(){
+  const user = document.getElementById('au-user').value.trim();
+  const pass = document.getElementById('au-pass').value;
+  const auth = await getAuth();
+  const hash = await sha256(pass);
+  if(!auth || auth.username !== user || auth.hash !== hash){
+    showAuthScreen('login', auth, 'اسم المستخدم أو كلمة المرور غير صحيحة');
+    return;
+  }
+  setSessionActive(true);
+  await enterApp();
+}
+function confirmReset(){
+  showModal(`
+    <h3>إعادة تعيين بيانات الدخول</h3>
+    <p style="font-size:13.5px;color:var(--text-dim);line-height:1.7;">
+      سيتم حذف اسم المستخدم وكلمة المرور الحاليين فقط، وستُطلب منك إنشاء دخول جديد.
+      بيانات العمارة (الوحدات، الملاك، الصيانة...) لن تتأثر وتبقى محفوظة.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn-danger" onclick="doResetAuth()">تأكيد إعادة التعيين</button>
+    </div>
+  `);
+}
+async function doResetAuth(){
+  await storageRemove(AUTH_KEY);
+  closeModal();
+  showAuthScreen('setup', null, '');
+}
+async function enterApp(){
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  if(!state) await loadState();
+  const auth = await getAuth();
+  if(auth) document.getElementById('authUserLabel').textContent = auth.username;
+  render();
+}
+
+/* ---------------- nav ---------------- */
+const NAV = [
+  {id:'dashboard', label:'لوحة التحكم', icon:'▦'},
+  {id:'units', label:'الشقق', icon:'🏢'},
+  {id:'owners', label:'الملاك', icon:'👥'},
+  {id:'payments', label:'الدفعات الشهرية', icon:'💳'},
+  {id:'finance', label:'الإيرادات والمصروفات', icon:'📊'},
+  {id:'equipment', label:'معدات المبنى', icon:'⚙'},
+  {id:'maintenance', label:'الصيانة', icon:'🛠'}
+];
+let currentView = 'dashboard';
+
+function renderNav(){
+  const el = document.getElementById('navList');
+  el.innerHTML = '';
+  NAV.forEach(n=>{
+    const b = document.createElement('button');
+    b.className = 'nav-item' + (currentView===n.id ? ' active':'');
+    b.innerHTML = '<span class="ic">'+n.icon+'</span><span>'+n.label+'</span>';
+    b.onclick = ()=>{ currentView = n.id; render(); };
+    el.appendChild(b);
+  });
+}
+
+function fmt(n){ return Number(n).toLocaleString('ar-SA'); }
+
+/* ---------------- render router ---------------- */
+function render(){
+  document.getElementById('bldgName').textContent = state.buildingName;
+  document.getElementById('bldgLogoImg').src = LOGO_URI;
+  renderNav();
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  if(currentView==='dashboard') renderDashboard(main);
+  else if(currentView==='units') renderUnits(main);
+  else if(currentView==='owners') renderOwners(main);
+  else if(currentView==='payments') renderPayments(main);
+  else if(currentView==='finance') renderFinance(main);
+  else if(currentView==='equipment') renderEquipment(main);
+  else if(currentView==='maintenance') renderMaintenance(main);
+}
+
+function topbar(main, eyebrow, title, desc, actionsHtml){
+  const div = document.createElement('div');
+  div.className='topbar';
+  div.innerHTML = '<div><div class="eyebrow">'+eyebrow+'</div><h1>'+title+'</h1><p class="page-desc">'+desc+'</p></div><div>'+(actionsHtml||'')+'</div>';
+  main.appendChild(div);
+}
+
+/* ---------------- dashboard ---------------- */
+function renderDashboard(main){
+  topbar(main, state.buildingName, 'لوحة التحكم', 'نظرة عامة على حالة الأعضاء والاشتراكات والصيانة.');
+
+  const settled = state.units.filter(u=>Number(u.totalDue)>=0).length;
+  const owing = state.units.length - settled;
+  const totalArrears = state.units.reduce((s,u)=>s+Math.min(0,Number(u.totalDue)),0);
+  const activeMnt = state.maintenance.filter(m=>m.status!=='مكتملة').length;
+  const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const collected = state.units.reduce((s,u)=>s+Number(u.collected||0),0);
+
+  const stats = document.createElement('div');
+  stats.className='stats-row';
+  stats.innerHTML = `
+    <div class="stat-card tint-green"><div class="lbl">أعضاء مسددون</div><div class="num">${settled}</div></div>
+    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">أعضاء عليهم مستحقات</div><div class="num">${owing}</div></div>
+    <div class="stat-card tint-amber"><div class="lbl">طلبات صيانة نشطة</div><div class="num">${activeMnt}</div></div>
+    <div class="stat-card"><div class="lbl">إجمالي الوحدات</div><div class="num">${state.units.length}</div></div>
+  `;
+  main.appendChild(stats);
+
+  const stats2 = document.createElement('div');
+  stats2.className='stats-row';
+  stats2.style.gridTemplateColumns='repeat(3,1fr)';
+  stats2.innerHTML = `
+    <div class="stat-card tint-blue"><div class="lbl">إجمالي المحصّل من الاشتراكات</div><div class="num">${fmt(collected)} ر.س</div></div>
+    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">إجمالي المستحقات المتأخرة</div><div class="num">${fmt(Math.abs(totalArrears))} ر.س</div></div>
+    <div class="stat-card tint-green"><div class="lbl">صافي الإيرادات والمصروفات</div><div class="num">${fmt(income-expense)} ر.س</div></div>
+  `;
+  main.appendChild(stats2);
+
+  const debtPanel = document.createElement('div');
+  debtPanel.className='panel';
+  const debtors = [...state.units].filter(u=>Number(u.totalDue)<0).sort((a,b)=>a.totalDue-b.totalDue);
+  debtPanel.innerHTML = '<div class="panel-title">الأعضاء عليهم مستحقات متأخرة</div>';
+  if(debtors.length===0){
+    debtPanel.innerHTML += '<div class="empty">لا يوجد أعضاء متأخرون 🎉</div>';
+  } else {
+    debtors.forEach(u=>{
+      const row = document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);';
+      row.innerHTML = `<div><div style="font-weight:700;font-size:13.5px;">${u.owner} — ${u.number}</div><div style="font-size:12px;color:var(--text-dim);">${u.phone}</div></div><b style="color:var(--red);">${fmt(u.totalDue)} ر.س</b>`;
+      debtPanel.appendChild(row);
+    });
+  }
+  main.appendChild(debtPanel);
+
+  const panel = document.createElement('div');
+  panel.className='panel';
+  const recentMnt = state.maintenance.slice(-3).reverse();
+  panel.innerHTML = '<div class="panel-title">أحدث طلبات الصيانة</div>';
+  if(recentMnt.length===0){
+    panel.innerHTML += '<div class="empty">لا توجد طلبات صيانة بعد</div>';
+  } else {
+    recentMnt.forEach(m=>{
+      const row = document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);';
+      row.innerHTML = `<div><div style="font-weight:700;font-size:13.5px;">${m.title}</div><div style="font-size:12px;color:var(--text-dim);">${m.location}</div></div>${statusBadge(m.status)}`;
+      panel.appendChild(row);
+    });
+  }
+  main.appendChild(panel);
+}
+
+function statusBadge(status){
+  const map = {
+    'طلب جديد':'amber', 'قيد التنفيذ':'blue', 'مكتملة':'green',
+    'مسدد':'green', 'عليه مستحقات':'red',
+    'مدفوعة':'green', 'غير مدفوعة':'red',
+    'يعمل':'green', 'يحتاج فحص':'amber', 'معطل':'red'
+  };
+  return '<span class="badge '+(map[status]||'gray')+'">'+status+'</span>';
+}
+
+/* ---------------- units ---------------- */
+function renderUnits(main){
+  topbar(main, state.buildingName, 'الشقق', 'بيانات الوحدات الثلاثين والأعضاء ومستحقات الاشتراكات.',
+    '<button class="btn" onclick="openUnitModal()">+ إضافة وحدة</button>');
+
+  const panel = document.createElement('div');
+  panel.className='panel';
+  let rows = '';
+  [...state.units].sort((a,b)=>a.number.localeCompare(b.number,'ar')).forEach(u=>{
+    rows += `<tr>
+      <td><b>${u.number}</b></td>
+      <td>${u.owner}</td>
+      <td dir="ltr" style="text-align:right;">${u.phone||'—'}</td>
+      <td>${fmt(u.monthlyFee||200)} ر.س</td>
+      <td><b style="color:${u.totalDue<0?'var(--red)':'var(--green)'}">${fmt(u.totalDue||0)} ر.س</b></td>
+      <td>${statusBadge(Number(u.totalDue)>=0?'مسدد':'عليه مستحقات')}</td>
+      <td>
+        <button class="icon-btn" onclick="openUnitModal('${u.id}')">تعديل</button>
+        <button class="icon-btn" onclick="deleteUnit('${u.id}')">حذف</button>
+      </td>
+    </tr>`;
+  });
+  panel.innerHTML = `<table>
+    <thead><tr><th>الوحدة</th><th>العضو</th><th>الجوال</th><th>الاشتراك الشهري</th><th>إجمالي المستحقات</th><th>الحالة</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+  main.appendChild(panel);
+}
+
+function openUnitModal(id){
+  const u = id ? state.units.find(x=>x.id===id) : null;
+  showModal(`
+    <h3>${u?'تعديل وحدة':'إضافة وحدة'}</h3>
+    <div class="two-col">
+      <div class="field"><label>رقم الوحدة</label><input id="f-number" value="${u?u.number:''}"></div>
+      <div class="field"><label>الدور</label><input id="f-floor" type="number" value="${u?u.floor:1}"></div>
+    </div>
+    <div class="field"><label>اسم العضو (المالك)</label><input id="f-owner" value="${u?u.owner:''}"></div>
+    <div class="field"><label>رقم الجوال</label><input id="f-phone" value="${u?u.phone:''}"></div>
+    <div class="two-col">
+      <div class="field"><label>الاشتراك الشهري (ر.س)</label><input id="f-fee" type="number" value="${u?u.monthlyFee:200}"></div>
+      <div class="field"><label>إجمالي المحصّل (ر.س)</label><input id="f-collected" type="number" value="${u?u.collected:0}"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>مستحقات سابقة</label><input id="f-arrears" type="number" value="${u?u.arrearsPrevious:0}"></div>
+      <div class="field"><label>مستحقات السنة الحالية</label><input id="f-duesyear" type="number" value="${u?u.duesThisYear:0}"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="saveUnit('${id||''}')">حفظ</button>
+    </div>
+  `);
+}
+async function saveUnit(id){
+  const arrears = Number(document.getElementById('f-arrears').value)||0;
+  const duesYear = Number(document.getElementById('f-duesyear').value)||0;
+  const data = {
+    number: document.getElementById('f-number').value.trim() || 'وحدة',
+    floor: Number(document.getElementById('f-floor').value)||1,
+    owner: document.getElementById('f-owner').value.trim(),
+    phone: document.getElementById('f-phone').value.trim(),
+    monthlyFee: Number(document.getElementById('f-fee').value)||200,
+    collected: Number(document.getElementById('f-collected').value)||0,
+    arrearsPrevious: arrears,
+    duesThisYear: duesYear,
+    totalDue: arrears + duesYear
+  };
+  if(id){
+    const u = state.units.find(x=>x.id===id);
+    Object.assign(u, data);
+  } else {
+    const newId = 'u'+(state.nextIds.unit++);
+    state.units.push({id:newId, ...data});
+  }
+  await saveState(); closeModal(); render();
+}
+async function deleteUnit(id){
+  state.units = state.units.filter(u=>u.id!==id);
+  await saveState(); render();
+}
+
+/* ---------------- owners ---------------- */
+function renderOwners(main){
+  topbar(main, state.buildingName, 'الملاك', 'قائمة أعضاء الجمعية (ملاك الوحدات) وبيانات التواصل معهم.',
+    '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printAllStatements()">🖨 طباعة كشوف كل الملاك</button>'+
+    '<button class="btn" onclick="openOwnerModal()">+ إضافة مالك</button>');
+  const panel = document.createElement('div');
+  panel.className='panel';
+  let rows='';
+  state.owners.forEach(o=>{
+    const unitCount = state.units.filter(u=>u.owner===o.name).length;
+    rows += `<tr>
+      <td><b>${o.name}</b></td>
+      <td dir="ltr" style="text-align:right;">${o.phone}</td>
+      <td>${unitCount} وحدة</td>
+      <td>
+        <button class="icon-btn" onclick="printOwnerStatement('${o.id}')">🖨 طباعة كشف</button>
+        <button class="icon-btn" onclick="openOwnerModal('${o.id}')">تعديل</button>
+        <button class="icon-btn" onclick="deleteOwner('${o.id}')">حذف</button>
+      </td>
+    </tr>`;
+  });
+  panel.innerHTML = `<table><thead><tr><th>الاسم</th><th>الجوال</th><th>عدد الوحدات</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  main.appendChild(panel);
+}
+
+/* ---------------- owner statement printing ---------------- */
+const ARABIC_MONTHS = {'01':'يناير','02':'فبراير','03':'مارس','04':'أبريل','05':'مايو','06':'يونيو','07':'يوليو','08':'أغسطس','09':'سبتمبر','10':'أكتوبر','11':'نوفمبر','12':'ديسمبر'};
+function monthLabel(key){
+  const [y,m] = key.split('-');
+  return (ARABIC_MONTHS[m]||m)+' '+y;
+}
+function buildOwnerStatementHTML(owner){
+  const units = state.units.filter(u=>u.owner===owner.name);
+  const totalDue = units.reduce((s,u)=>s+Number(u.totalDue||0),0);
+  const totalCollected = units.reduce((s,u)=>s+Number(u.collected||0),0);
+
+  let unitsRows = '';
+  units.forEach(u=>{
+    unitsRows += `<tr>
+      <td>${u.number}</td>
+      <td>${fmt(u.monthlyFee||200)} ر.س</td>
+      <td>${fmt(u.collected||0)} ر.س</td>
+      <td>${fmt(u.arrearsPrevious||0)} ر.س</td>
+      <td>${fmt(u.duesThisYear||0)} ر.س</td>
+      <td style="font-weight:700;color:${Number(u.totalDue)<0?'#c0392b':'#1f9d55'}">${fmt(u.totalDue||0)} ر.س</td>
+    </tr>`;
+  });
+
+  let paymentsRows = '';
+  units.forEach(u=>{
+    const keys = Object.keys(state.payments).filter(k=>k.startsWith(u.id+'|')).sort();
+    if(keys.length===0) return;
+    keys.forEach(k=>{
+      const month = k.split('|')[1];
+      const rec = state.payments[k];
+      paymentsRows += `<tr>
+        <td>${u.number}</td>
+        <td>${monthLabel(month)}</td>
+        <td>${fmt(rec.amount)} ر.س</td>
+        <td style="color:${rec.paid?'#1f9d55':'#c0392b'};font-weight:700;">${rec.paid?'مدفوعة':'غير مدفوعة'}</td>
+      </tr>`;
+    });
+  });
+
+  const today = new Date().toLocaleDateString('ar-SA');
+  return `
+  <div class="stmt-page">
+    <div class="stmt-header">
+      <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
+      <div>
+        <div class="stmt-building">${esc(state.buildingName)}</div>
+        <div class="stmt-title">كشف حساب مالك</div>
+      </div>
+      <div class="stmt-date">تاريخ الطباعة: ${today}</div>
+    </div>
+    <table class="stmt-info">
+      <tr><td><b>اسم المالك:</b> ${esc(owner.name)}</td><td><b>رقم الجوال:</b> <span dir="ltr">${esc(owner.phone||'—')}</span></td></tr>
+      <tr><td><b>عدد الوحدات:</b> ${units.length}</td><td><b>إجمالي المستحقات:</b> <span style="color:${totalDue<0?'#c0392b':'#1f9d55'}">${fmt(totalDue)} ر.س</span></td></tr>
+    </table>
+
+    <div class="stmt-section-title">بيانات الوحدات والمستحقات</div>
+    <table class="stmt-table">
+      <thead><tr><th>الوحدة</th><th>الاشتراك الشهري</th><th>إجمالي المحصّل</th><th>مستحقات سابقة</th><th>مستحقات السنة الحالية</th><th>إجمالي المستحقات</th></tr></thead>
+      <tbody>${unitsRows || '<tr><td colspan="6">لا توجد وحدات</td></tr>'}</tbody>
+    </table>
+
+    <div class="stmt-section-title">سجل الدفعات الشهرية</div>
+    <table class="stmt-table">
+      <thead><tr><th>الوحدة</th><th>الشهر</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+      <tbody>${paymentsRows || '<tr><td colspan="4">لا توجد دفعات مسجلة</td></tr>'}</tbody>
+    </table>
+
+    <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
+  </div>`;
+}
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const STMT_STYLE = `
+  *{box-sizing:border-box;}
+  body{font-family:'Tajawal', system-ui, sans-serif; direction:rtl; color:#16202c; margin:0; padding:24px; background:#fff;}
+  .stmt-page{max-width:800px;margin:0 auto 40px auto;page-break-after:always;}
+  .stmt-page:last-child{page-break-after:auto;}
+  .stmt-header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0f9c8f;padding-bottom:14px;margin-bottom:18px;}
+  .stmt-logo{width:46px;height:46px;border-radius:10px;object-fit:contain;background:#0a1420;}
+  .stmt-building{font-size:16px;font-weight:800;}
+  .stmt-title{font-size:12.5px;color:#6b7684;font-weight:600;}
+  .stmt-date{margin-right:auto;font-size:12px;color:#6b7684;}
+  table.stmt-info{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:13.5px;}
+  table.stmt-info td{padding:8px 4px;}
+  .stmt-section-title{font-weight:700;font-size:13.5px;margin:16px 0 8px 0;color:#0f9c8f;}
+  table.stmt-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.stmt-table th{background:#f5f7f9;text-align:right;padding:7px 8px;border:1px solid #e6e9ee;font-weight:700;}
+  table.stmt-table td{padding:7px 8px;border:1px solid #e6e9ee;}
+  .stmt-footer{margin-top:20px;font-size:11px;color:#9aa4b2;text-align:center;}
+  @media print{ .stmt-page{page-break-after:always;} }
+`;
+function printOwnerStatement(id){
+  const owner = state.owners.find(o=>o.id===id);
+  if(!owner) return;
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة لطباعة الكشف'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>كشف حساب - ${esc(owner.name)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${buildOwnerStatementHTML(owner)}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+function printAllStatements(){
+  if(state.owners.length===0){ alert('لا يوجد ملاك لطباعة كشوفهم'); return; }
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة لطباعة الكشوف'); return; }
+  const pages = state.owners.map(o=>buildOwnerStatementHTML(o)).join('\n');
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>كشوف حسابات الملاك - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${pages}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),400);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+function openOwnerModal(id){
+  const o = id ? state.owners.find(x=>x.id===id) : null;
+  showModal(`
+    <h3>${o?'تعديل مالك':'إضافة مالك'}</h3>
+    <div class="field"><label>الاسم</label><input id="f-oname" value="${o?o.name:''}"></div>
+    <div class="field"><label>رقم الجوال</label><input id="f-ophone" value="${o?o.phone:''}"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="saveOwner('${id||''}')">حفظ</button>
+    </div>
+  `);
+}
+async function saveOwner(id){
+  const name = document.getElementById('f-oname').value.trim();
+  const phone = document.getElementById('f-ophone').value.trim();
+  if(!name) return;
+  if(id){ const o=state.owners.find(x=>x.id===id); o.name=name; o.phone=phone; }
+  else{ state.owners.push({id:'o'+(state.nextIds.owner++), name, phone}); }
+  await saveState(); closeModal(); render();
+}
+async function deleteOwner(id){
+  state.owners = state.owners.filter(o=>o.id!==id);
+  await saveState(); render();
+}
+
+/* ---------------- payments ---------------- */
+function currentMonthKey(){
+  const now = new Date();
+  return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+}
+let paymentsMonth = currentMonthKey();
+function renderPayments(main){
+  topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو ووحدة.');
+
+  const filters = document.createElement('div');
+  filters.className='filters-row';
+  filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">الشهر:</label>
+    <input type="month" id="monthPicker" value="${paymentsMonth}">`;
+  main.appendChild(filters);
+  filters.querySelector('#monthPicker').onchange = (e)=>{ paymentsMonth = e.target.value; render(); };
+
+  const panel = document.createElement('div');
+  panel.className='panel';
+  let rows='';
+  let totalDue=0, totalPaid=0;
+  [...state.units].sort((a,b)=>a.number.localeCompare(b.number,'ar')).forEach(u=>{
+    const key = u.id+'|'+paymentsMonth;
+    const rec = state.payments[key] || {paid:false, amount:u.monthlyFee||200};
+    totalDue += Number(rec.amount);
+    if(rec.paid) totalPaid += Number(rec.amount);
+    rows += `<tr>
+      <td><b>${u.number}</b></td>
+      <td>${u.owner}</td>
+      <td>${fmt(rec.amount)} ر.س</td>
+      <td>${statusBadge(rec.paid?'مدفوعة':'غير مدفوعة')}</td>
+      <td><button class="icon-btn" onclick="togglePayment('${u.id}')">${rec.paid?'إلغاء الدفع':'تحديد كمدفوعة'}</button></td>
+    </tr>`;
+  });
+  panel.innerHTML = `<div class="panel-title">تحصيل ${paymentsMonth} — ${fmt(totalPaid)} / ${fmt(totalDue)} ر.س</div>
+    <table><thead><tr><th>الوحدة</th><th>العضو</th><th>المبلغ</th><th>الحالة</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">لا توجد وحدات</td></tr>'}</tbody></table>`;
+  main.appendChild(panel);
+}
+async function togglePayment(unitId){
+  const key = unitId+'|'+paymentsMonth;
+  const u = state.units.find(x=>x.id===unitId);
+  const rec = state.payments[key] || {paid:false, amount:u.monthlyFee||200};
+  rec.paid = !rec.paid;
+  rec.amount = rec.amount || u.monthlyFee || 200;
+  state.payments[key] = rec;
+  await saveState(); render();
+}
+
+/* ---------------- finance ---------------- */
+function renderFinance(main){
+  topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة.',
+    '<button class="btn" onclick="openTxModal()">+ إضافة حركة</button>');
+
+  const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const stats = document.createElement('div');
+  stats.className='stats-row';
+  stats.style.gridTemplateColumns='repeat(3,1fr)';
+  stats.innerHTML = `
+    <div class="stat-card tint-green"><div class="lbl">الإيرادات</div><div class="num">${fmt(income)} ر.س</div></div>
+    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات</div><div class="num">${fmt(expense)} ر.س</div></div>
+    <div class="stat-card tint-blue"><div class="lbl">الصافي</div><div class="num">${fmt(income-expense)} ر.س</div></div>
+  `;
+  main.appendChild(stats);
+
+  const panel = document.createElement('div');
+  panel.className='panel';
+  let rows='';
+  [...state.transactions].reverse().forEach(t=>{
+    rows += `<tr>
+      <td>${t.date}</td>
+      <td>${statusBadge(t.type==='income'?'مدفوعة':'غير مدفوعة').replace(t.type==='income'?'مدفوعة':'غير مدفوعة', t.type==='income'?'إيراد':'مصروف')}</td>
+      <td>${t.category}</td>
+      <td>${t.note||'—'}</td>
+      <td><b style="color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'+':'-'}${fmt(t.amount)} ر.س</b></td>
+      <td>${t.hasAttachment ? `<button class="icon-btn" onclick="viewAttachment('${t.id}')" title="${t.attachmentName||''}">📎 عرض الفاتورة</button>` : '<span style="color:var(--text-dim);font-size:12px;">—</span>'}</td>
+      <td><button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
+    </tr>`;
+  });
+  panel.innerHTML = `<table><thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>ملاحظة</th><th>المبلغ</th><th>المرفق</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">لا توجد حركات</td></tr>'}</tbody></table>`;
+  main.appendChild(panel);
+}
+function openTxModal(){
+  showModal(`
+    <h3>إضافة حركة مالية</h3>
+    <div class="two-col">
+      <div class="field"><label>النوع</label>
+        <select id="f-txtype"><option value="income">إيراد</option><option value="expense">مصروف</option></select>
+      </div>
+      <div class="field"><label>المبلغ (ر.س)</label><input id="f-txamount" type="number"></div>
+    </div>
+    <div class="field"><label>الفئة</label><input id="f-txcat" placeholder="مثال: دفعات إيجار، صيانة، كهرباء"></div>
+    <div class="field"><label>ملاحظة</label><input id="f-txnote"></div>
+    <div class="field"><label>التاريخ</label><input id="f-txdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="field"><label>صورة الفاتورة أو ملف PDF (اختياري)</label><input id="f-txfile" type="file" accept="image/*,application/pdf"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="saveTx()">حفظ</button>
+    </div>
+  `);
+}
+function readFileAsDataURL(file){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = ()=>resolve(r.result);
+    r.onerror = ()=>reject(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
+async function saveTx(){
+  const type = document.getElementById('f-txtype').value;
+  const amount = Number(document.getElementById('f-txamount').value)||0;
+  const category = document.getElementById('f-txcat').value.trim()||'عام';
+  const note = document.getElementById('f-txnote').value.trim();
+  const date = document.getElementById('f-txdate').value;
+  const fileInput = document.getElementById('f-txfile');
+  const file = fileInput && fileInput.files && fileInput.files[0];
+
+  const tx = {id:'t'+(state.nextIds.tx++), type, amount, category, note, date, hasAttachment:false};
+
+  if(file){
+    if(file.size > 4.5*1024*1024){
+      alert('حجم الملف كبير جدًا (الحد الأقصى تقريبًا 4.5 ميغابايت)');
+    } else {
+      try{
+        const dataUrl = await readFileAsDataURL(file);
+        await storageSet('attachment:'+tx.id, JSON.stringify({name:file.name, type:file.type, data:dataUrl}));
+        tx.hasAttachment = true;
+        tx.attachmentName = file.name;
+      }catch(e){ alert('تعذّر حفظ المرفق'); }
+    }
+  }
+
+  state.transactions.push(tx);
+  await saveState(); closeModal(); render();
+}
+async function deleteTx(id){
+  state.transactions = state.transactions.filter(t=>t.id!==id);
+  await storageRemove('attachment:'+id);
+  await saveState(); render();
+}
+async function viewAttachment(id){
+  try{
+    const raw = await storageGet('attachment:'+id);
+    if(!raw){ alert('تعذّر العثور على المرفق'); return; }
+    const {name, type, data} = JSON.parse(raw);
+    const w = window.open('', '_blank');
+    if(!w){ alert('يرجى السماح بالنوافذ المنبثقة لعرض المرفق'); return; }
+    const body = type && type.startsWith('image')
+      ? `<img src="${data}" style="max-width:100%;max-height:100vh;display:block;margin:auto;">`
+      : `<iframe src="${data}" style="width:100vw;height:100vh;border:none;"></iframe>`;
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>${esc(name)}</title>
+      <style>html,body{margin:0;background:#22282a;min-height:100vh;}</style>
+      </head><body>${body}</body></html>`);
+    w.document.close();
+  }catch(e){ alert('تعذّر عرض المرفق'); }
+}
+
+/* ---------------- equipment ---------------- */
+function renderEquipment(main){
+  topbar(main, state.buildingName, 'معدات المبنى', 'متابعة معدات العمارة الأساسية وتواريخ صيانتها.',
+    '<button class="btn" onclick="openEqModal()">+ إضافة معدة</button>');
+  const panel = document.createElement('div');
+  panel.className='panel';
+  let rows='';
+  state.equipment.forEach(e=>{
+    rows += `<tr>
+      <td><b>${e.name}</b></td>
+      <td>${e.location}</td>
+      <td>${e.lastMaintenance}</td>
+      <td>${statusBadge(e.status)}</td>
+      <td><button class="icon-btn" onclick="openEqModal('${e.id}')">تعديل</button><button class="icon-btn" onclick="deleteEq('${e.id}')">حذف</button></td>
+    </tr>`;
+  });
+  panel.innerHTML = `<table><thead><tr><th>المعدة</th><th>الموقع</th><th>آخر صيانة</th><th>الحالة</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">لا توجد معدات مسجلة</td></tr>'}</tbody></table>`;
+  main.appendChild(panel);
+}
+function openEqModal(id){
+  const e = id ? state.equipment.find(x=>x.id===id) : null;
+  showModal(`
+    <h3>${e?'تعديل معدة':'إضافة معدة'}</h3>
+    <div class="field"><label>اسم المعدة</label><input id="f-eqname" value="${e?e.name:''}"></div>
+    <div class="field"><label>الموقع</label><input id="f-eqloc" value="${e?e.location:''}"></div>
+    <div class="two-col">
+      <div class="field"><label>آخر صيانة</label><input id="f-eqdate" type="date" value="${e?e.lastMaintenance:new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>الحالة</label>
+        <select id="f-eqstatus">
+          <option value="يعمل" ${e&&e.status==='يعمل'?'selected':''}>يعمل</option>
+          <option value="يحتاج فحص" ${e&&e.status==='يحتاج فحص'?'selected':''}>يحتاج فحص</option>
+          <option value="معطل" ${e&&e.status==='معطل'?'selected':''}>معطل</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="saveEq('${id||''}')">حفظ</button>
+    </div>
+  `);
+}
+async function saveEq(id){
+  const data = {
+    name: document.getElementById('f-eqname').value.trim(),
+    location: document.getElementById('f-eqloc').value.trim(),
+    lastMaintenance: document.getElementById('f-eqdate').value,
+    status: document.getElementById('f-eqstatus').value
+  };
+  if(id){ Object.assign(state.equipment.find(x=>x.id===id), data); }
+  else{ state.equipment.push({id:'e'+(state.nextIds.eq++), ...data}); }
+  await saveState(); closeModal(); render();
+}
+async function deleteEq(id){
+  state.equipment = state.equipment.filter(e=>e.id!==id);
+  await saveState(); render();
+}
+
+/* ---------------- maintenance ---------------- */
+let mntFilterStatus = 'الكل';
+function renderMaintenance(main){
+  topbar(main, state.buildingName, 'الصيانة', 'سجّل طلب الصيانة، حدّد موعده، وتابع تنفيذه حتى الإغلاق.',
+    '<button class="btn" onclick="openMntModal()">+ طلب صيانة جديد</button>');
+
+  const info = document.createElement('div');
+  info.className='info-banner';
+  info.textContent = 'الاستخدام: سجّل الطلب، حوّله إلى قيد التنفيذ عند بدء العمل، ثم أغلقه كمكتمل مع ملاحظات الإنجاز.';
+  main.appendChild(info);
+
+  const counts = {
+    'طلب جديد': state.maintenance.filter(m=>m.status==='طلب جديد').length,
+    'قيد التنفيذ': state.maintenance.filter(m=>m.status==='قيد التنفيذ').length,
+    'مكتملة': state.maintenance.filter(m=>m.status==='مكتملة').length
+  };
+  const stats = document.createElement('div');
+  stats.className='stats-row';
+  stats.style.gridTemplateColumns='repeat(4,1fr)';
+  stats.innerHTML = `
+    <div class="stat-card tint-amber"><div class="lbl">طلب جديد</div><div class="num">${counts['طلب جديد']}</div></div>
+    <div class="stat-card tint-blue"><div class="lbl">قيد التنفيذ</div><div class="num">${counts['قيد التنفيذ']}</div></div>
+    <div class="stat-card tint-green"><div class="lbl">مكتملة</div><div class="num">${counts['مكتملة']}</div></div>
+    <div class="stat-card"><div class="lbl">الإجمالي</div><div class="num">${state.maintenance.length}</div></div>
+  `;
+  main.appendChild(stats);
+
+  const filters = document.createElement('div');
+  filters.className='filters-row';
+  filters.innerHTML = `<select id="mntFilter">
+      <option value="الكل">كل الحالات</option>
+      <option value="طلب جديد">طلب جديد</option>
+      <option value="قيد التنفيذ">قيد التنفيذ</option>
+      <option value="مكتملة">مكتملة</option>
+    </select>
+    <input type="text" id="mntSearch" placeholder="ابحث في العنوان أو الموقع...">`;
+  main.appendChild(filters);
+  filters.querySelector('#mntFilter').value = mntFilterStatus;
+  filters.querySelector('#mntFilter').onchange = (e)=>{ mntFilterStatus = e.target.value; render(); };
+  filters.querySelector('#mntSearch').oninput = (e)=>{ renderMntGrid(main, e.target.value); };
+
+  const gridWrap = document.createElement('div');
+  gridWrap.id = 'mntGridWrap';
+  main.appendChild(gridWrap);
+  renderMntGrid(main, '');
+}
+function renderMntGrid(main, search){
+  const wrap = document.getElementById('mntGridWrap');
+  let list = state.maintenance;
+  if(mntFilterStatus!=='الكل') list = list.filter(m=>m.status===mntFilterStatus);
+  if(search) list = list.filter(m=>(m.title+m.location).includes(search));
+  list = [...list].reverse();
+
+  const grid = document.createElement('div');
+  grid.className='req-grid';
+  if(list.length===0){
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">لا توجد طلبات مطابقة</div>';
+  } else {
+    list.forEach(m=>{
+      const card = document.createElement('div');
+      card.className='req-card';
+      card.innerHTML = `
+        <div class="req-tags">${statusBadge(m.status)}<span class="badge gray">${m.type}</span><span class="badge gray">${m.priority}</span></div>
+        <div class="req-title">${m.title}</div>
+        <div class="req-desc">${m.desc}</div>
+        <div class="req-meta">
+          <div class="req-meta-row"><span>الموقع:</span><b>${m.location}</b></div>
+          <div class="req-meta-row"><span>الوحدة:</span><b>${m.unit}</b></div>
+          <div class="req-meta-row"><span>تاريخ البلاغ:</span><b>${m.reportDate}</b></div>
+          <div class="req-meta-row"><span>موعد التنفيذ:</span><b>${m.execDate||'—'}</b></div>
+        </div>
+        <div class="req-actions">
+          ${m.status!=='مكتملة' ? `<button class="btn btn-sm" onclick="advanceMnt('${m.id}')">${m.status==='طلب جديد'?'بدء التنفيذ':'إغلاق كمكتمل'}</button>` : ''}
+          <button class="btn-ghost btn-sm" onclick="openMntModal('${m.id}')">تعديل</button>
+          <button class="btn-danger btn-sm" onclick="deleteMnt('${m.id}')">حذف</button>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+  wrap.innerHTML = '';
+  wrap.appendChild(grid);
+}
+async function advanceMnt(id){
+  const m = state.maintenance.find(x=>x.id===id);
+  if(m.status==='طلب جديد'){ m.status='قيد التنفيذ'; }
+  else if(m.status==='قيد التنفيذ'){ m.status='مكتملة'; m.execDate = new Date().toISOString().slice(0,10); }
+  await saveState(); render();
+}
+async function deleteMnt(id){
+  state.maintenance = state.maintenance.filter(m=>m.id!==id);
+  await saveState(); render();
+}
+function openMntModal(id){
+  const m = id ? state.maintenance.find(x=>x.id===id) : null;
+  const unitOptions = ['<option value="—">—</option>'].concat(state.units.map(u=>`<option value="${u.number}" ${m&&m.unit===u.number?'selected':''}>${u.number}</option>`)).join('');
+  showModal(`
+    <h3>${m?'تعديل طلب صيانة':'طلب صيانة جديد'}</h3>
+    <div class="field"><label>عنوان الطلب</label><input id="f-mtitle" value="${m?m.title:''}"></div>
+    <div class="field"><label>الوصف</label><textarea id="f-mdesc">${m?m.desc:''}</textarea></div>
+    <div class="two-col">
+      <div class="field"><label>الموقع</label><input id="f-mloc" value="${m?m.location:''}"></div>
+      <div class="field"><label>الوحدة</label><select id="f-munit">${unitOptions}</select></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>نوع الصيانة</label>
+        <select id="f-mtype">
+          <option ${m&&m.type==='كهرباء وإنارة'?'selected':''}>كهرباء وإنارة</option>
+          <option ${m&&m.type==='سباكة ومياه'?'selected':''}>سباكة ومياه</option>
+          <option ${m&&m.type==='تكييف'?'selected':''}>تكييف</option>
+          <option ${m&&m.type==='مصاعد'?'selected':''}>مصاعد</option>
+          <option ${m&&m.type==='أخرى'?'selected':''}>أخرى</option>
+        </select>
+      </div>
+      <div class="field"><label>الأولوية</label>
+        <select id="f-mpriority">
+          <option ${m&&m.priority==='منخفضة'?'selected':''}>منخفضة</option>
+          <option ${!m||m.priority==='عادية'?'selected':''}>عادية</option>
+          <option ${m&&m.priority==='عاجلة'?'selected':''}>عاجلة</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="saveMnt('${id||''}')">حفظ</button>
+    </div>
+  `);
+}
+async function saveMnt(id){
+  const data = {
+    title: document.getElementById('f-mtitle').value.trim()||'طلب صيانة',
+    desc: document.getElementById('f-mdesc').value.trim(),
+    location: document.getElementById('f-mloc').value.trim(),
+    unit: document.getElementById('f-munit').value,
+    type: document.getElementById('f-mtype').value,
+    priority: document.getElementById('f-mpriority').value
+  };
+  if(id){ Object.assign(state.maintenance.find(x=>x.id===id), data); }
+  else{
+    state.maintenance.push({
+      id:'m'+(state.nextIds.mnt++), ...data,
+      status:'طلب جديد', reportDate:new Date().toISOString().slice(0,10), execDate:''
+    });
+  }
+  await saveState(); closeModal(); render();
+}
+
+/* ---------------- modal helpers ---------------- */
+function showModal(html){
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.id==='overlay') closeModal(); });
+
+/* ---------------- boot ---------------- */
+(async function boot(){
+  await loadState(); // load building data in the background either way
+  const auth = await getAuth();
+  if(!auth){
+    showAuthScreen('setup', null, '');
+  } else if(isSessionActive()){
+    await enterApp();
+  } else {
+    showAuthScreen('login', auth, '');
+  }
+})();
+</script>
+</body>
+</html>
