@@ -660,23 +660,45 @@ function buildStatusPieSVG(settledCount, owingCount){
   </svg>`;
 }
 
+function arrearsSeverityColor(amount){
+  if(amount >= 1000) return '#c0392b';
+  if(amount >= 400) return '#e0524a';
+  return '#f0a75c';
+}
 function buildArrearsBarChartSVG(defaulters){
   if(defaulters.length===0) return '<div class="chart-empty">لا يوجد أعضاء متأخرون لعرضهم بالرسم البياني 🎉</div>';
-  const rowH = 28;
-  const padL = 96, padR = 56, padT = 8, padB = 8;
-  const w = 560;
+  const rowH = 30;
+  const padL = 92, padR = 66, padT = 26, padB = 6;
+  const w = 580;
   const chartW = w - padL - padR;
   const h = padT + padB + defaulters.length*rowH;
   const maxVal = Math.max(1, ...defaulters.map(u=>Math.abs(u.totalDue)));
-  let bars = '';
+  const niceMax = Math.ceil(maxVal/500)*500 || maxVal;
+
+  let zebra = '', gridLines = '', gridLabels = '', bars = '';
+  [0,0.25,0.5,0.75,1].forEach(f=>{
+    const x = padL + chartW*f;
+    gridLines += `<line x1="${x.toFixed(1)}" y1="${padT-6}" x2="${x.toFixed(1)}" y2="${h-padB}" stroke="#eef0f3" stroke-width="1"></line>`;
+    gridLabels += `<text x="${x.toFixed(1)}" y="${padT-11}" text-anchor="middle" font-size="9.5" fill="#9aa4b2">${fmt(Math.round(niceMax*f))}</text>`;
+  });
   defaulters.forEach((u,i)=>{
     const y = padT + i*rowH;
-    const barW = (Math.abs(u.totalDue)/maxVal)*chartW;
+    if(i%2===1) zebra += `<rect x="0" y="${y}" width="${w}" height="${rowH}" fill="#f7f8fa"></rect>`;
+    const val = Math.abs(u.totalDue);
+    const barW = (val/niceMax)*chartW;
+    const color = arrearsSeverityColor(val);
     bars += `<text x="${padL-8}" y="${y+rowH/2+4}" text-anchor="end" font-size="11.5" font-weight="600" fill="#16202c">${esc(u.number)}</text>`;
-    bars += `<rect x="${padL}" y="${y+6}" width="${Math.max(barW,3)}" height="${rowH-12}" rx="4" fill="#e0524a"></rect>`;
-    bars += `<text x="${padL+Math.max(barW,3)+7}" y="${y+rowH/2+4}" font-size="11.5" font-weight="700" fill="#c0392b">${fmt(Math.abs(u.totalDue))}</text>`;
+    bars += `<rect x="${padL}" y="${y+6}" width="${Math.max(barW,3)}" height="${rowH-12}" rx="4" fill="${color}"></rect>`;
+    bars += `<text x="${padL+Math.max(barW,3)+7}" y="${y+rowH/2+4}" font-size="11.5" font-weight="700" fill="${color}">${fmt(val)}</text>`;
   });
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" xmlns="http://www.w3.org/2000/svg">${zebra}${gridLines}${gridLabels}${bars}</svg>`;
+}
+function buildArrearsSeverityLegendHTML(){
+  return `<div class="chart-legend" style="margin-top:4px;">
+    <span><i style="background:#f0a75c"></i>أقل من 400 ر.س</span>
+    <span><i style="background:#e0524a"></i>400 – 999 ر.س</span>
+    <span><i style="background:#c0392b"></i>1000 ر.س فأكثر</span>
+  </div>`;
 }
 
 /* ---------------- dashboard ---------------- */
@@ -1195,7 +1217,7 @@ function renderPayments(main){
     const barCard = document.createElement('div');
     barCard.className = 'panel chart-card';
     barCard.style.marginTop = '14px';
-    barCard.innerHTML = `<div class="panel-title">المتأخرات حسب الشقة</div>${buildArrearsBarChartSVG(defaulters)}`;
+    barCard.innerHTML = `<div class="panel-title">المتأخرات حسب الشقة</div>${buildArrearsBarChartSVG(defaulters)}${buildArrearsSeverityLegendHTML()}`;
     main.appendChild(barCard);
   }
 }
@@ -1339,7 +1361,7 @@ function buildDefaultersReportHTML(opts){
     </table>
     ${defaulters.length>0 ? `
     <div class="stmt-section-title">الرسم البياني للمتأخرات حسب الشقة</div>
-    <div class="stmt-chart-wrap">${buildArrearsBarChartSVG(defaulters)}</div>
+    <div class="stmt-chart-wrap">${buildArrearsBarChartSVG(defaulters)}${buildArrearsSeverityLegendHTML()}</div>
     ` : ''}
     <table class="stmt-table defaulters-detail-table">
       <thead><tr><th>الشقة</th>${showName?'<th>العضو</th>':''}${showPhone?'<th>الجوال</th>':''}${monthHeaders}<th>مستحقات سابقة</th><th>الإجمالي</th></tr></thead>
@@ -1361,6 +1383,9 @@ function printDefaultersReport(opts){
       .stmt-chart-wrap{ margin:8px 0 18px 0; }
       .stmt-chart-wrap svg{ display:block; width:100%; height:auto; max-width:640px; margin:0 auto; }
       @media print{ .stmt-chart-wrap{ page-break-inside:avoid; } }
+      .chart-legend{ display:flex; gap:16px; justify-content:center; font-size:11.5px; color:#6b7684; margin-top:6px; }
+      .chart-legend span{ display:inline-flex; align-items:center; gap:5px; }
+      .chart-legend i{ width:9px; height:9px; border-radius:3px; display:inline-block; }
     </style></head>
     <body>${buildDefaultersReportHTML(opts)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
