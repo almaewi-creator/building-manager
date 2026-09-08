@@ -1074,7 +1074,7 @@ let paymentsMonth = currentMonthKey();
 function renderPayments(main){
   topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو ووحدة، مع إمكانية تعديل مبلغ أي شهر لأي وحدة (مثال: فرق شهر أغسطس).',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printPaymentsReport()">🖨 طباعة كشف الشهر</button>'+
-    '<button class="btn-ghost btn-sm" onclick="printDefaultersReport()">🖨 طباعة كشف المتأخرين</button>');
+    '<button class="btn-ghost btn-sm" onclick="openDefaultersPrintOptions()">🖨 طباعة كشف المتأخرين</button>');
 
   const filters = document.createElement('div');
   filters.className='filters-row';
@@ -1234,7 +1234,10 @@ function printPaymentsReport(){
     </body></html>`);
   w.document.close();
 }
-function buildDefaultersReportHTML(){
+function buildDefaultersReportHTML(opts){
+  opts = opts || {};
+  const showName = opts.showName !== false;
+  const showPhone = opts.showPhone !== false;
   const start = firstBillingMonthKey();
   const end = lastCompletedMonthKey();
   const months = monthsBetweenInclusive(start, end);
@@ -1243,6 +1246,7 @@ function buildDefaultersReportHTML(){
   const today = new Date().toLocaleDateString('ar-SA');
 
   const monthHeaders = months.map(mk=>`<th>${monthLabel(mk)}</th>`).join('');
+  const fixedColCount = 1 + (showName?1:0) + (showPhone?1:0);
   const rows = defaulters.map(u=>{
     const monthCells = months.map(mk=>{
       const rec = state.payments[u.id+'|'+mk];
@@ -1255,8 +1259,8 @@ function buildDefaultersReportHTML(){
     const prevArrears = Number(u.arrearsPrevious||0);
     return `<tr>
       <td>${esc(u.number)}</td>
-      <td>${esc(u.owner)}</td>
-      <td dir="ltr">${esc(u.phone||'—')}</td>
+      ${showName ? `<td>${esc(u.owner)}</td>` : ''}
+      ${showPhone ? `<td dir="ltr">${esc(u.phone||'—')}</td>` : ''}
       ${monthCells}
       <td style="text-align:center;${prevArrears<0?'color:#c0392b;font-weight:700;':''}">${prevArrears<0?fmt(Math.abs(prevArrears)):'—'}</td>
       <td style="font-weight:800;color:#c0392b;text-align:center;">${fmt(Math.abs(u.totalDue))}</td>
@@ -1277,13 +1281,13 @@ function buildDefaultersReportHTML(){
       <tr><td><b>عدد المتأخرين:</b> ${defaulters.length} من ${state.units.length} وحدة</td><td><b>إجمالي المتأخرات:</b> ${fmt(totalOwed)} ر.س</td></tr>
     </table>
     <table class="stmt-table defaulters-detail-table">
-      <thead><tr><th>الوحدة</th><th>العضو</th><th>الجوال</th>${monthHeaders}<th>مستحقات سابقة</th><th>الإجمالي</th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="${5+months.length}">لا يوجد أعضاء متأخرون 🎉</td></tr>`}</tbody>
+      <thead><tr><th>الوحدة</th>${showName?'<th>العضو</th>':''}${showPhone?'<th>الجوال</th>':''}${monthHeaders}<th>مستحقات سابقة</th><th>الإجمالي</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="${fixedColCount+2+months.length}">لا يوجد أعضاء متأخرون 🎉</td></tr>`}</tbody>
     </table>
     <div class="stmt-footer">المبلغ الظاهر في عمود كل شهر هو القيمة غير المسددة لذلك الشهر فقط، وعلامة ✓ تعني أن الشهر مسدد بالكامل. هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
   </div>`;
 }
-function printDefaultersReport(){
+function printDefaultersReport(opts){
   const w = window.open('', '_blank');
   if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
@@ -1294,10 +1298,34 @@ function printDefaultersReport(){
       .stmt-page-wide{ max-width:100%; }
       .defaulters-detail-table th, .defaulters-detail-table td{ padding:5px 6px; font-size:10.5px; white-space:nowrap; }
     </style></head>
-    <body>${buildDefaultersReportHTML()}
+    <body>${buildDefaultersReportHTML(opts)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
   w.document.close();
+}
+function openDefaultersPrintOptions(){
+  showModal(`
+    <h3>خيارات طباعة كشف المتأخرين</h3>
+    <p style="font-size:12.5px;color:var(--text-dim);margin-top:-6px;">اختر البيانات اللي تبي تظهر بالكشف قبل الطباعة (رقم الشقة يظهر دائمًا).</p>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <input type="checkbox" id="dp-showname" checked style="width:auto;">
+      <label for="dp-showname" style="margin:0;font-size:13.5px;font-weight:500;color:var(--text);">إظهار اسم العضو</label>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <input type="checkbox" id="dp-showphone" checked style="width:auto;">
+      <label for="dp-showphone" style="margin:0;font-size:13.5px;font-weight:500;color:var(--text);">إظهار رقم الجوال</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="confirmPrintDefaulters()">🖨 طباعة</button>
+    </div>
+  `);
+}
+function confirmPrintDefaulters(){
+  const showName = document.getElementById('dp-showname').checked;
+  const showPhone = document.getElementById('dp-showphone').checked;
+  closeModal();
+  printDefaultersReport({showName, showPhone});
 }
 
 /* ---------------- finance ---------------- */
