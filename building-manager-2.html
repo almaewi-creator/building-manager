@@ -1320,6 +1320,10 @@ function buildDefaultersReportHTML(opts){
     <table class="stmt-info">
       <tr><td><b>عدد المتأخرين:</b> ${defaulters.length} من ${state.units.length} شقة</td><td><b>إجمالي المتأخرات:</b> ${fmt(totalOwed)} ر.س</td></tr>
     </table>
+    ${defaulters.length>0 ? `
+    <div class="stmt-section-title">الرسم البياني للمتأخرات حسب الشقة</div>
+    <div class="stmt-chart-wrap">${buildArrearsBarChartSVG(defaulters)}</div>
+    ` : ''}
     <table class="stmt-table defaulters-detail-table">
       <thead><tr><th>الشقة</th>${showName?'<th>العضو</th>':''}${showPhone?'<th>الجوال</th>':''}${monthHeaders}<th>مستحقات سابقة</th><th>الإجمالي</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="${fixedColCount+2+months.length}">لا يوجد أعضاء متأخرون 🎉</td></tr>`}</tbody>
@@ -1337,6 +1341,9 @@ function printDefaultersReport(opts){
       @page{ size: landscape; }
       .stmt-page-wide{ max-width:100%; }
       .defaulters-detail-table th, .defaulters-detail-table td{ padding:5px 6px; font-size:10.5px; white-space:nowrap; }
+      .stmt-chart-wrap{ margin:8px 0 18px 0; }
+      .stmt-chart-wrap svg{ display:block; width:100%; height:auto; max-width:640px; margin:0 auto; }
+      @media print{ .stmt-chart-wrap{ page-break-inside:avoid; } }
     </style></head>
     <body>${buildDefaultersReportHTML(opts)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
