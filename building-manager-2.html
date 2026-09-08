@@ -129,6 +129,7 @@
   .alert-banner .btn-ghost{flex-shrink:0;background:#fff;}
 
   .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+  .defaulters-row{display:grid;grid-template-columns:1fr 240px;gap:14px;margin-top:16px;align-items:start;}
   .chart-card svg{display:block;width:100%;height:auto;margin-top:8px;}
   .chart-legend{display:flex;gap:14px;font-size:12px;color:var(--text-dim);}
   .chart-legend span{display:inline-flex;align-items:center;gap:5px;}
@@ -244,6 +245,7 @@
     .sidebar-footer{display:none;}
     .stats-row{grid-template-columns:repeat(2,1fr);}
     .charts-row{grid-template-columns:1fr;}
+    .defaulters-row{grid-template-columns:1fr;}
     .req-grid{grid-template-columns:1fr;}
     .main{padding:18px 14px;}
     .alert-banner{flex-wrap:wrap;}
@@ -495,6 +497,7 @@ function fmt(n){ return Number(n).toLocaleString('ar-SA'); }
 
 /* ---------------- render router ---------------- */
 function render(){
+  if(syncAllUnitsFinancials()) saveState();
   document.getElementById('bldgName').textContent = state.buildingName;
   document.getElementById('bldgLogoImg').src = LOGO_URI;
   renderNav();
@@ -598,6 +601,33 @@ function buildCollectionChartSVG(data){
     bars += `<text x="${cx}" y="${h-8}" text-anchor="middle" font-size="10.5" fill="#6b7684">${chartMonthLabel(d.month)}</text>`;
   });
   return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${grid}${bars}</svg>`;
+}
+
+function polarToCartesian(cx,cy,r,angleDeg){
+  const rad = angleDeg * Math.PI/180;
+  return { x: cx + r*Math.sin(rad), y: cy - r*Math.cos(rad) };
+}
+function describeArc(cx,cy,r,startAngle,endAngle){
+  const start = polarToCartesian(cx,cy,r,startAngle);
+  const end = polarToCartesian(cx,cy,r,endAngle);
+  const largeArcFlag = (endAngle-startAngle) <= 180 ? 0 : 1;
+  return `M ${cx} ${cy} L ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 ${largeArcFlag} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)} Z`;
+}
+function buildStatusPieSVG(settledCount, owingCount){
+  const total = settledCount+owingCount;
+  if(total===0) return '<div class="chart-empty">لا توجد وحدات بعد</div>';
+  const cx=90, cy=90, r=72;
+  const owingAngle = (owingCount/total)*360;
+  let paths='';
+  if(owingCount>0) paths += `<path d="${describeArc(cx,cy,r,0,owingAngle)}" fill="#e0524a"></path>`;
+  if(settledCount>0) paths += `<path d="${describeArc(cx,cy,r,owingAngle,360)}" fill="#1f9d55"></path>`;
+  const owingPct = Math.round((owingCount/total)*100);
+  return `<svg viewBox="0 0 180 180" width="180" height="180" xmlns="http://www.w3.org/2000/svg">
+    ${paths}
+    <circle cx="${cx}" cy="${cy}" r="40" fill="#ffffff"></circle>
+    <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="22" font-weight="800" fill="#16202c">${owingPct}%</text>
+    <text x="${cx}" y="${cy+15}" text-anchor="middle" font-size="10.5" fill="#6b7684">متأخرون</text>
+  </svg>`;
 }
 
 /* ---------------- dashboard ---------------- */
@@ -760,12 +790,14 @@ function openUnitModal(id){
     <div class="field"><label>رقم الجوال</label><input id="f-phone" value="${u?u.phone:''}"></div>
     <div class="two-col">
       <div class="field"><label>الاشتراك الشهري (ر.س)</label><input id="f-fee" type="number" value="${u?u.monthlyFee:200}"></div>
-      <div class="field"><label>إجمالي المحصّل (ر.س)</label><input id="f-collected" type="number" value="${u?u.collected:0}"></div>
+      <div class="field"><label>مستحقات سابقة (قبل بدء النظام)</label><input id="f-arrears" type="number" value="${u?u.arrearsPrevious:0}"></div>
     </div>
-    <div class="two-col">
-      <div class="field"><label>مستحقات سابقة</label><input id="f-arrears" type="number" value="${u?u.arrearsPrevious:0}"></div>
-      <div class="field"><label>مستحقات السنة الحالية</label><input id="f-duesyear" type="number" value="${u?u.duesThisYear:0}"></div>
-    </div>
+    ${u ? `<div class="field" style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-top:2px;">
+      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:6px;">تُحسب هذي القيم تلقائيًا من سجل الدفعات الشهرية الفعلي، وتتحدّث كل ما تعدّل دفعة — ما تحتاج تعديلها يدويًا:</div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0;"><span>إجمالي المحصّل:</span><b>${fmt(u.collected)} ر.س</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0;"><span>مستحقات الأشهر المنقضية:</span><b>${fmt(u.duesThisYear)} ر.س</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0 0 0;border-top:1px solid var(--border);margin-top:4px;"><span>إجمالي المستحقات:</span><b style="color:${u.totalDue<0?'var(--red)':'var(--green)'}">${fmt(u.totalDue)} ر.س</b></div>
+    </div>` : `<div class="field" style="font-size:12px;color:var(--text-dim);">بعد الحفظ، ستُحسب مستحقات الوحدة تلقائيًا حسب سجل الدفعات الشهرية.</div>`}
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
       <button class="btn" onclick="saveUnit('${id||''}')">حفظ</button>
@@ -774,25 +806,24 @@ function openUnitModal(id){
 }
 async function saveUnit(id){
   const arrears = Number(document.getElementById('f-arrears').value)||0;
-  const duesYear = Number(document.getElementById('f-duesyear').value)||0;
   const data = {
     number: document.getElementById('f-number').value.trim() || 'وحدة',
     floor: Number(document.getElementById('f-floor').value)||1,
     owner: document.getElementById('f-owner').value.trim(),
     phone: document.getElementById('f-phone').value.trim(),
     monthlyFee: Number(document.getElementById('f-fee').value)||200,
-    collected: Number(document.getElementById('f-collected').value)||0,
-    arrearsPrevious: arrears,
-    duesThisYear: duesYear,
-    totalDue: arrears + duesYear
+    arrearsPrevious: arrears
   };
+  let unit;
   if(id){
-    const u = state.units.find(x=>x.id===id);
-    Object.assign(u, data);
+    unit = state.units.find(x=>x.id===id);
+    Object.assign(unit, data);
   } else {
     const newId = 'u'+(state.nextIds.unit++);
-    state.units.push({id:newId, ...data});
+    unit = {id:newId, ...data, collected:0, duesThisYear:0, totalDue:0};
+    state.units.push(unit);
   }
+  syncUnitFinancials(unit);
   await saveState(); closeModal(); render();
 }
 async function deleteUnit(id){
@@ -975,10 +1006,75 @@ function currentMonthKey(){
   const now = new Date();
   return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
 }
+function lastCompletedMonthKey(){
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function firstBillingMonthKey(){
+  let min = null;
+  Object.keys(state.payments).forEach(k=>{
+    const month = k.split('|')[1];
+    if(!min || month < min) min = month;
+  });
+  return min || currentMonthKey();
+}
+function monthsBetweenInclusive(startKey, endKey){
+  if(startKey > endKey) return [];
+  const out = [];
+  let [y,m] = startKey.split('-').map(Number);
+  const [ey,em] = endKey.split('-').map(Number);
+  while(y<ey || (y===ey && m<=em)){
+    out.push(y+'-'+String(m).padStart(2,'0'));
+    m++; if(m>12){ m=1; y++; }
+  }
+  return out;
+}
+/* Every riyal a unit has actually been marked as paid, across all recorded months —
+   this always matches the payments checkboxes, so it can never drift out of sync. */
+function computeUnitCollected(unit){
+  let total = 0;
+  const prefix = unit.id+'|';
+  Object.keys(state.payments).forEach(k=>{
+    if(k.startsWith(prefix) && state.payments[k].paid) total += Number(state.payments[k].amount)||0;
+  });
+  return total;
+}
+/* What the unit owes (or has overpaid) for months that have already fully elapsed,
+   counting from the building's first billing month through last completed month.
+   The current month is not counted yet — dues aren't "late" until the month is over. */
+function computeUnitDuesThisYear(unit){
+  const start = firstBillingMonthKey();
+  const end = lastCompletedMonthKey();
+  const months = monthsBetweenInclusive(start, end);
+  let due=0, paid=0;
+  months.forEach(mk=>{
+    const rec = state.payments[unit.id+'|'+mk];
+    const amount = rec ? Number(rec.amount) : Number(unit.monthlyFee||200);
+    due += amount;
+    if(rec && rec.paid) paid += amount;
+  });
+  return paid - due;
+}
+function syncUnitFinancials(unit){
+  unit.collected = computeUnitCollected(unit);
+  unit.duesThisYear = computeUnitDuesThisYear(unit);
+  unit.totalDue = Number(unit.arrearsPrevious||0) + unit.duesThisYear;
+}
+function syncAllUnitsFinancials(){
+  let changed = false;
+  state.units.forEach(u=>{
+    const before = JSON.stringify([u.collected,u.duesThisYear,u.totalDue]);
+    syncUnitFinancials(u);
+    if(JSON.stringify([u.collected,u.duesThisYear,u.totalDue]) !== before) changed = true;
+  });
+  return changed;
+}
 let paymentsMonth = currentMonthKey();
 function renderPayments(main){
   topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو ووحدة، مع إمكانية تعديل مبلغ أي شهر لأي وحدة (مثال: فرق شهر أغسطس).',
-    '<button class="btn-ghost btn-sm" onclick="printPaymentsReport()">🖨 طباعة كشف الشهر</button>');
+    '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printPaymentsReport()">🖨 طباعة كشف الشهر</button>'+
+    '<button class="btn-ghost btn-sm" onclick="printDefaultersReport()">🖨 طباعة كشف المتأخرين</button>');
 
   const filters = document.createElement('div');
   filters.className='filters-row';
@@ -1011,6 +1107,40 @@ function renderPayments(main){
   panel.innerHTML = `<div class="panel-title">تحصيل ${paymentsMonth} — ${fmt(totalPaid)} / ${fmt(totalDue)} ر.س</div>
     <table><thead><tr><th>الوحدة</th><th>العضو</th><th>المبلغ</th><th>الحالة</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">لا توجد وحدات</td></tr>'}</tbody></table>`;
   main.appendChild(panel);
+
+  const defaulters = [...state.units].filter(u=>Number(u.totalDue)<0).sort((a,b)=>a.totalDue-b.totalDue);
+  const settledCount = state.units.length - defaulters.length;
+  const totalOwed = Math.abs(defaulters.reduce((s,u)=>s+Number(u.totalDue),0));
+
+  const defRow = document.createElement('div');
+  defRow.className = 'defaulters-row';
+
+  const defPanel = document.createElement('div');
+  defPanel.className = 'panel';
+  let defRows = '';
+  if(defaulters.length===0){
+    defRows = '<div class="empty">لا يوجد أعضاء متأخرون 🎉</div>';
+  } else {
+    defRows = `<table><thead><tr><th>الوحدة</th><th>العضو</th><th>الجوال</th><th>المتأخر</th></tr></thead><tbody>` +
+      defaulters.map(u=>`<tr>
+        <td><b>${esc(u.number)}</b></td>
+        <td>${esc(u.owner)}</td>
+        <td dir="ltr" style="text-align:right;">${esc(u.phone||'—')}</td>
+        <td><b style="color:var(--red);">${fmt(Math.abs(u.totalDue))} ر.س</b></td>
+      </tr>`).join('') + `</tbody></table>`;
+  }
+  defPanel.innerHTML = `<div class="panel-title">الأعضاء المتأخرون عن السداد (${defaulters.length} من ${state.units.length}) — إجمالي ${fmt(totalOwed)} ر.س</div>${defRows}`;
+
+  const pieCard = document.createElement('div');
+  pieCard.className = 'panel';
+  pieCard.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;';
+  pieCard.innerHTML = `<div class="panel-title" style="align-self:flex-start;">نسبة الالتزام بالسداد</div>
+    ${buildStatusPieSVG(settledCount, defaulters.length)}
+    <div class="chart-legend"><span><i style="background:#1f9d55"></i>ملتزمون (${settledCount})</span><span><i style="background:#e0524a"></i>متأخرون (${defaulters.length})</span></div>`;
+
+  defRow.appendChild(defPanel);
+  defRow.appendChild(pieCard);
+  main.appendChild(defRow);
 }
 async function togglePayment(unitId){
   const key = unitId+'|'+paymentsMonth;
@@ -1100,6 +1230,48 @@ function printPaymentsReport(){
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <style>${STMT_STYLE}</style></head>
     <body>${buildPaymentsReportHTML()}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+function buildDefaultersReportHTML(){
+  const defaulters = [...state.units].filter(u=>Number(u.totalDue)<0).sort((a,b)=>a.totalDue-b.totalDue);
+  const totalOwed = Math.abs(defaulters.reduce((s,u)=>s+Number(u.totalDue),0));
+  const today = new Date().toLocaleDateString('ar-SA');
+  const rows = defaulters.map(u=>`<tr>
+      <td>${esc(u.number)}</td>
+      <td>${esc(u.owner)}</td>
+      <td dir="ltr">${esc(u.phone||'—')}</td>
+      <td style="font-weight:700;color:#c0392b;">${fmt(Math.abs(u.totalDue))} ر.س</td>
+    </tr>`).join('');
+  return `
+  <div class="stmt-page">
+    <div class="stmt-header">
+      <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
+      <div>
+        <div class="stmt-building">${esc(state.buildingName)}</div>
+        <div class="stmt-title">كشف الأعضاء المتأخرين عن السداد</div>
+      </div>
+      <div class="stmt-date">تاريخ الطباعة: ${today}</div>
+    </div>
+    <table class="stmt-info">
+      <tr><td><b>عدد المتأخرين:</b> ${defaulters.length} من ${state.units.length} وحدة</td><td><b>إجمالي المتأخرات:</b> ${fmt(totalOwed)} ر.س</td></tr>
+    </table>
+    <table class="stmt-table">
+      <thead><tr><th>الوحدة</th><th>العضو</th><th>الجوال</th><th>المبلغ المتأخر</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4">لا يوجد أعضاء متأخرون 🎉</td></tr>'}</tbody>
+    </table>
+    <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
+  </div>`;
+}
+function printDefaultersReport(){
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>كشف المتأخرين - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${buildDefaultersReportHTML()}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
   w.document.close();
