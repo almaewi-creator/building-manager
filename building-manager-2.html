@@ -1235,33 +1235,52 @@ function printPaymentsReport(){
   w.document.close();
 }
 function buildDefaultersReportHTML(){
+  const start = firstBillingMonthKey();
+  const end = lastCompletedMonthKey();
+  const months = monthsBetweenInclusive(start, end);
   const defaulters = [...state.units].filter(u=>Number(u.totalDue)<0).sort((a,b)=>a.totalDue-b.totalDue);
   const totalOwed = Math.abs(defaulters.reduce((s,u)=>s+Number(u.totalDue),0));
   const today = new Date().toLocaleDateString('ar-SA');
-  const rows = defaulters.map(u=>`<tr>
+
+  const monthHeaders = months.map(mk=>`<th>${monthLabel(mk)}</th>`).join('');
+  const rows = defaulters.map(u=>{
+    const monthCells = months.map(mk=>{
+      const rec = state.payments[u.id+'|'+mk];
+      const amount = rec ? Number(rec.amount) : Number(u.monthlyFee||200);
+      const paid = rec ? !!rec.paid : false;
+      return paid
+        ? `<td style="color:#1f9d55;text-align:center;">✓</td>`
+        : `<td style="color:#c0392b;font-weight:700;text-align:center;">${fmt(amount)}</td>`;
+    }).join('');
+    const prevArrears = Number(u.arrearsPrevious||0);
+    return `<tr>
       <td>${esc(u.number)}</td>
       <td>${esc(u.owner)}</td>
       <td dir="ltr">${esc(u.phone||'—')}</td>
-      <td style="font-weight:700;color:#c0392b;">${fmt(Math.abs(u.totalDue))} ر.س</td>
-    </tr>`).join('');
+      ${monthCells}
+      <td style="text-align:center;${prevArrears<0?'color:#c0392b;font-weight:700;':''}">${prevArrears<0?fmt(Math.abs(prevArrears)):'—'}</td>
+      <td style="font-weight:800;color:#c0392b;text-align:center;">${fmt(Math.abs(u.totalDue))}</td>
+    </tr>`;
+  }).join('');
+
   return `
-  <div class="stmt-page">
+  <div class="stmt-page stmt-page-wide">
     <div class="stmt-header">
       <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
       <div>
         <div class="stmt-building">${esc(state.buildingName)}</div>
-        <div class="stmt-title">كشف الأعضاء المتأخرين عن السداد</div>
+        <div class="stmt-title">كشف الأعضاء المتأخرين عن السداد — تفصيل شهري</div>
       </div>
       <div class="stmt-date">تاريخ الطباعة: ${today}</div>
     </div>
     <table class="stmt-info">
       <tr><td><b>عدد المتأخرين:</b> ${defaulters.length} من ${state.units.length} وحدة</td><td><b>إجمالي المتأخرات:</b> ${fmt(totalOwed)} ر.س</td></tr>
     </table>
-    <table class="stmt-table">
-      <thead><tr><th>الوحدة</th><th>العضو</th><th>الجوال</th><th>المبلغ المتأخر</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4">لا يوجد أعضاء متأخرون 🎉</td></tr>'}</tbody>
+    <table class="stmt-table defaulters-detail-table">
+      <thead><tr><th>الوحدة</th><th>العضو</th><th>الجوال</th>${monthHeaders}<th>مستحقات سابقة</th><th>الإجمالي</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="${5+months.length}">لا يوجد أعضاء متأخرون 🎉</td></tr>`}</tbody>
     </table>
-    <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
+    <div class="stmt-footer">المبلغ الظاهر في عمود كل شهر هو القيمة غير المسددة لذلك الشهر فقط، وعلامة ✓ تعني أن الشهر مسدد بالكامل. هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
   </div>`;
 }
 function printDefaultersReport(){
@@ -1270,7 +1289,11 @@ function printDefaultersReport(){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>كشف المتأخرين - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}
+      @page{ size: landscape; }
+      .stmt-page-wide{ max-width:100%; }
+      .defaulters-detail-table th, .defaulters-detail-table td{ padding:5px 6px; font-size:10.5px; white-space:nowrap; }
+    </style></head>
     <body>${buildDefaultersReportHTML()}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
