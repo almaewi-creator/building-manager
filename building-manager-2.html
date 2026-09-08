@@ -77,6 +77,7 @@
   .nav-item .ic{width:17px;text-align:center;font-size:14px;flex-shrink:0;}
   .nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
   .nav-item.active{background:var(--teal);color:#fff;}
+  .nav-divider{height:1px;background:rgba(255,255,255,.1);margin:6px 4px;flex-shrink:0;}
   .sidebar-footer{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:8px;}
   .sidebar-user{
     display:flex;align-items:center;gap:9px;
@@ -242,6 +243,8 @@
     .sidebar{width:100%;flex-direction:row;overflow-x:auto;align-items:center;}
     .sidebar-header{border:none;margin:0;padding:0 10px 0 0;}
     .nav{flex-direction:row;}
+    .nav-item{white-space:nowrap;flex-shrink:0;}
+    .nav-divider{width:1px;height:24px;margin:0 6px;flex-shrink:0;}
     .sidebar-footer{display:none;}
     .stats-row{grid-template-columns:repeat(2,1fr);}
     .charts-row{grid-template-columns:1fr;}
@@ -274,8 +277,6 @@
           <div class="sidebar-user-role">manager@building.local</div>
         </div>
       </div>
-      <button class="nav-item" onclick="manualSaveNow(this)"><span class="ic">💾</span><span>حفظ الآن</span></button>
-      <button class="nav-item" onclick="logout()"><span class="ic">⏻</span><span>تسجيل الخروج</span></button>
     </div>
   </div>
   <div class="main" id="main"></div>
@@ -502,6 +503,22 @@ function renderNav(){
     b.onclick = ()=>{ currentView = n.id; render(); };
     el.appendChild(b);
   });
+
+  const divider = document.createElement('div');
+  divider.className = 'nav-divider';
+  el.appendChild(divider);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'nav-item';
+  saveBtn.innerHTML = '<span class="ic">💾</span><span>حفظ الآن</span>';
+  saveBtn.onclick = ()=>manualSaveNow(saveBtn);
+  el.appendChild(saveBtn);
+
+  const logoutBtn = document.createElement('button');
+  logoutBtn.className = 'nav-item';
+  logoutBtn.innerHTML = '<span class="ic">⏻</span><span>تسجيل الخروج</span>';
+  logoutBtn.onclick = ()=>logout();
+  el.appendChild(logoutBtn);
 }
 function goToView(id){ currentView = id; render(); }
 function goToMaintenanceUrgent(){ currentView = 'maintenance'; mntFilterStatus='الكل'; mntFilterPriority = 'عاجلة'; render(); }
