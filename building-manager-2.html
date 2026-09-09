@@ -1586,7 +1586,7 @@ function renderFinance(main){
       <td>${t.note||'—'}</td>
       <td><b style="color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'+':'-'}${fmt(t.amount)} ر.س</b></td>
       <td>${t.hasAttachment ? `<button class="icon-btn" onclick="viewAttachment('${t.id}')" title="${t.attachmentName||''}">📎 عرض الفاتورة</button>` : '<span style="color:var(--text-dim);font-size:12px;">—</span>'}</td>
-      <td><button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
+      <td><button class="icon-btn" onclick="openTxModal('${t.id}')">تعديل</button> <button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
     </tr>`;
   });
   panel.innerHTML = `<table><thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th><th>المرفق</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">لا توجد حركات</td></tr>'}</tbody></table>`;
@@ -1641,27 +1641,28 @@ function printFinanceReport(){
     </body></html>`);
   w.document.close();
 }
-function openTxModal(){
+function openTxModal(id){
+  const t = id ? state.transactions.find(x=>x.id===id) : null;
   showModal(`
-    <h3>إضافة حركة مالية</h3>
+    <h3>${t?'تعديل حركة مالية':'إضافة حركة مالية'}</h3>
     <div class="two-col">
       <div class="field"><label>النوع</label>
-        <select id="f-txtype"><option value="income">إيراد</option><option value="expense">مصروف</option></select>
+        <select id="f-txtype"><option value="income" ${t&&t.type==='income'?'selected':''}>إيراد</option><option value="expense" ${t&&t.type==='expense'?'selected':''}>مصروف</option></select>
       </div>
-      <div class="field"><label>المبلغ (ر.س)</label><input id="f-txamount" type="number"></div>
+      <div class="field"><label>المبلغ (ر.س)</label><input id="f-txamount" type="number" value="${t?t.amount:''}"></div>
     </div>
-    <div class="field"><label>الفئة</label><input id="f-txcat" placeholder="مثال: دفعات إيجار، صيانة، كهرباء"></div>
+    <div class="field"><label>الفئة</label><input id="f-txcat" placeholder="مثال: دفعات إيجار، صيانة، كهرباء" value="${t?esc(t.category):''}"></div>
     <div class="two-col">
       <div class="field"><label>طريقة الدفع</label>
-        <select id="f-txmethod"><option value="كاش">كاش</option><option value="تحويل">تحويل بنكي</option></select>
+        <select id="f-txmethod"><option value="كاش" ${!t||t.method==='كاش'?'selected':''}>كاش</option><option value="تحويل" ${t&&t.method==='تحويل'?'selected':''}>تحويل بنكي</option></select>
       </div>
-      <div class="field"><label>التاريخ</label><input id="f-txdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>التاريخ</label><input id="f-txdate" type="date" value="${t?t.date:new Date().toISOString().slice(0,10)}"></div>
     </div>
-    <div class="field"><label>ملاحظة</label><input id="f-txnote"></div>
-    <div class="field"><label>صورة الفاتورة أو ملف PDF (اختياري)</label><input id="f-txfile" type="file" accept="image/*,application/pdf"></div>
+    <div class="field"><label>ملاحظة</label><input id="f-txnote" value="${t?esc(t.note||''):''}"></div>
+    <div class="field"><label>صورة الفاتورة أو ملف PDF (اختياري)${t&&t.hasAttachment?' — يوجد مرفق حاليًا، اختر ملف جديد لاستبداله':''}</label><input id="f-txfile" type="file" accept="image/*,application/pdf"></div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
-      <button class="btn" onclick="saveTx()">حفظ</button>
+      <button class="btn" onclick="saveTx('${id||''}')">حفظ</button>
     </div>
   `);
 }
@@ -1673,7 +1674,7 @@ function readFileAsDataURL(file){
     r.readAsDataURL(file);
   });
 }
-async function saveTx(){
+async function saveTx(id){
   const type = document.getElementById('f-txtype').value;
   const amount = Number(document.getElementById('f-txamount').value)||0;
   const category = document.getElementById('f-txcat').value.trim()||'عام';
@@ -1683,7 +1684,14 @@ async function saveTx(){
   const fileInput = document.getElementById('f-txfile');
   const file = fileInput && fileInput.files && fileInput.files[0];
 
-  const tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date, hasAttachment:false};
+  let tx;
+  if(id){
+    tx = state.transactions.find(x=>x.id===id);
+    Object.assign(tx, {type, amount, category, method, note, date});
+  } else {
+    tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date, hasAttachment:false};
+    state.transactions.push(tx);
+  }
 
   if(file){
     if(file.size > 4.5*1024*1024){
@@ -1698,7 +1706,6 @@ async function saveTx(){
     }
   }
 
-  state.transactions.push(tx);
   await saveState(); closeModal(); render();
 }
 async function deleteTx(id){
