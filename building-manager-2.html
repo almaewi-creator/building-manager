@@ -366,8 +366,11 @@ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); hasLocalSt
 // Generic persistence: prefer Claude's storage (works inside claude.ai),
 // fall back to the browser's own localStorage (works when the file is opened
 // directly / hosted anywhere else), so data survives either way.
+function isCloudBackedKey(key){
+  return key === STORE_KEY || key.startsWith('attachment:');
+}
 async function storageGet(key){
-  if(key === STORE_KEY){
+  if(isCloudBackedKey(key)){
     const cloudVal = await cloudGet(key);
     if(cloudVal) return cloudVal;
   }
@@ -380,7 +383,7 @@ async function storageGet(key){
   return null;
 }
 async function storageSet(key, value){
-  if(key === STORE_KEY){
+  if(isCloudBackedKey(key)){
     await cloudSet(key, value);
   }
   if(hasClaudeStorage()){
@@ -390,7 +393,19 @@ async function storageSet(key, value){
     try{ localStorage.setItem(key, value); }catch(e){}
   }
 }
+async function cloudRemove(key){
+  const client = getSupabaseClient();
+  if(!client) return false;
+  try{
+    const { error } = await client.from('app_state').delete().eq('id', key);
+    if(error){ console.error('Supabase delete error', error); return false; }
+    return true;
+  }catch(e){ console.error('Supabase delete exception', e); return false; }
+}
 async function storageRemove(key){
+  if(isCloudBackedKey(key)){
+    await cloudRemove(key);
+  }
   if(hasClaudeStorage()){
     try{ await window.storage.delete(key, false); }catch(e){}
   }
@@ -1567,13 +1582,14 @@ function renderFinance(main){
       <td>${t.date}</td>
       <td>${statusBadge(t.type==='income'?'مدفوعة':'غير مدفوعة').replace(t.type==='income'?'مدفوعة':'غير مدفوعة', t.type==='income'?'إيراد':'مصروف')}</td>
       <td>${t.category}</td>
+      <td>${t.method||'—'}</td>
       <td>${t.note||'—'}</td>
       <td><b style="color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'+':'-'}${fmt(t.amount)} ر.س</b></td>
       <td>${t.hasAttachment ? `<button class="icon-btn" onclick="viewAttachment('${t.id}')" title="${t.attachmentName||''}">📎 عرض الفاتورة</button>` : '<span style="color:var(--text-dim);font-size:12px;">—</span>'}</td>
       <td><button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
     </tr>`;
   });
-  panel.innerHTML = `<table><thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>ملاحظة</th><th>المبلغ</th><th>المرفق</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">لا توجد حركات</td></tr>'}</tbody></table>`;
+  panel.innerHTML = `<table><thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th><th>المرفق</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">لا توجد حركات</td></tr>'}</tbody></table>`;
   main.appendChild(panel);
 }
 function buildFinanceReportHTML(){
@@ -1584,6 +1600,7 @@ function buildFinanceReportHTML(){
       <td>${esc(t.date)}</td>
       <td style="font-weight:700;color:${t.type==='income'?'#1f9d55':'#c0392b'}">${t.type==='income'?'إيراد':'مصروف'}</td>
       <td>${esc(t.category)}</td>
+      <td>${esc(t.method||'—')}</td>
       <td>${esc(t.note||'—')}</td>
       <td style="font-weight:700;">${t.type==='income'?'+':'-'}${fmt(t.amount)} ر.س</td>
     </tr>`).join('');
@@ -1605,8 +1622,8 @@ function buildFinanceReportHTML(){
       </tr>
     </table>
     <table class="stmt-table">
-      <thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>ملاحظة</th><th>المبلغ</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="5">لا توجد حركات</td></tr>'}</tbody>
+      <thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6">لا توجد حركات</td></tr>'}</tbody>
     </table>
     <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
     <div class="stmt-footer">هذا التقرير صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
@@ -1634,8 +1651,13 @@ function openTxModal(){
       <div class="field"><label>المبلغ (ر.س)</label><input id="f-txamount" type="number"></div>
     </div>
     <div class="field"><label>الفئة</label><input id="f-txcat" placeholder="مثال: دفعات إيجار، صيانة، كهرباء"></div>
+    <div class="two-col">
+      <div class="field"><label>طريقة الدفع</label>
+        <select id="f-txmethod"><option value="كاش">كاش</option><option value="تحويل">تحويل بنكي</option></select>
+      </div>
+      <div class="field"><label>التاريخ</label><input id="f-txdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    </div>
     <div class="field"><label>ملاحظة</label><input id="f-txnote"></div>
-    <div class="field"><label>التاريخ</label><input id="f-txdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
     <div class="field"><label>صورة الفاتورة أو ملف PDF (اختياري)</label><input id="f-txfile" type="file" accept="image/*,application/pdf"></div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
@@ -1655,12 +1677,13 @@ async function saveTx(){
   const type = document.getElementById('f-txtype').value;
   const amount = Number(document.getElementById('f-txamount').value)||0;
   const category = document.getElementById('f-txcat').value.trim()||'عام';
+  const method = document.getElementById('f-txmethod').value;
   const note = document.getElementById('f-txnote').value.trim();
   const date = document.getElementById('f-txdate').value;
   const fileInput = document.getElementById('f-txfile');
   const file = fileInput && fileInput.files && fileInput.files[0];
 
-  const tx = {id:'t'+(state.nextIds.tx++), type, amount, category, note, date, hasAttachment:false};
+  const tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date, hasAttachment:false};
 
   if(file){
     if(file.size > 4.5*1024*1024){
