@@ -1837,7 +1837,8 @@ function renderMntGrid(main, search){
           <div class="req-meta-row"><span>الموقع:</span><b>${m.location}</b></div>
           <div class="req-meta-row"><span>الشقة:</span><b>${m.unit}</b></div>
           <div class="req-meta-row"><span>تاريخ البلاغ:</span><b>${m.reportDate}</b></div>
-          <div class="req-meta-row"><span>موعد التنفيذ:</span><b>${m.execDate||'—'}</b></div>
+          <div class="req-meta-row"><span>بدء التنفيذ:</span><b>${m.startDate||'—'}</b></div>
+          <div class="req-meta-row"><span>انتهاء التنفيذ:</span><b>${m.endDate||'—'}</b></div>
         </div>
         <div class="req-actions">
           ${m.status!=='مكتملة' ? `<button class="btn btn-sm" onclick="advanceMnt('${m.id}')">${m.status==='طلب جديد'?'بدء التنفيذ':'إغلاق كمكتمل'}</button>` : ''}
@@ -1858,7 +1859,8 @@ function buildMntCardHTML(m){
       <tr><td><b>عنوان الطلب:</b> ${esc(m.title)}</td><td><b>الحالة:</b> ${esc(m.status)}</td></tr>
       <tr><td><b>الموقع:</b> ${esc(m.location||'—')}</td><td><b>الشقة:</b> ${esc(m.unit||'—')}</td></tr>
       <tr><td><b>نوع الصيانة:</b> ${esc(m.type)}</td><td><b>الأولوية:</b> ${esc(m.priority)}</td></tr>
-      <tr><td><b>تاريخ البلاغ:</b> ${esc(m.reportDate)}</td><td><b>تاريخ الإنجاز:</b> ${esc(m.execDate||'—')}</td></tr>
+      <tr><td><b>تاريخ البلاغ:</b> ${esc(m.reportDate)}</td><td><b>بدء التنفيذ:</b> ${esc(m.startDate||'—')}</td></tr>
+      <tr><td><b>انتهاء التنفيذ:</b> ${esc(m.endDate||'—')}</td><td></td></tr>
     </table>
     <div class="stmt-section-title">الوصف</div>
     <p style="font-size:13px;line-height:1.7;">${esc(m.desc||'—')}</p>`;
@@ -1912,8 +1914,8 @@ function printMaintenanceReport(){
 }
 async function advanceMnt(id){
   const m = state.maintenance.find(x=>x.id===id);
-  if(m.status==='طلب جديد'){ m.status='قيد التنفيذ'; }
-  else if(m.status==='قيد التنفيذ'){ m.status='مكتملة'; m.execDate = new Date().toISOString().slice(0,10); }
+  if(m.status==='طلب جديد'){ m.status='قيد التنفيذ'; if(!m.startDate) m.startDate = new Date().toISOString().slice(0,10); }
+  else if(m.status==='قيد التنفيذ'){ m.status='مكتملة'; if(!m.endDate) m.endDate = new Date().toISOString().slice(0,10); }
   await saveState(); render();
 }
 async function deleteMnt(id){
@@ -1930,6 +1932,10 @@ function openMntModal(id){
     <div class="two-col">
       <div class="field"><label>الموقع</label><input id="f-mloc" value="${m?m.location:''}"></div>
       <div class="field"><label>الشقة</label><select id="f-munit">${unitOptions}</select></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>تاريخ بدء التنفيذ</label><input id="f-mstart" type="date" value="${m&&m.startDate?m.startDate:''}"></div>
+      <div class="field"><label>تاريخ انتهاء التنفيذ</label><input id="f-mend" type="date" value="${m&&m.endDate?m.endDate:''}"></div>
     </div>
     <div class="two-col">
       <div class="field"><label>نوع الصيانة</label>
@@ -1961,6 +1967,8 @@ async function saveMnt(id){
     desc: document.getElementById('f-mdesc').value.trim(),
     location: document.getElementById('f-mloc').value.trim(),
     unit: document.getElementById('f-munit').value,
+    startDate: document.getElementById('f-mstart').value,
+    endDate: document.getElementById('f-mend').value,
     type: document.getElementById('f-mtype').value,
     priority: document.getElementById('f-mpriority').value
   };
@@ -1968,7 +1976,7 @@ async function saveMnt(id){
   else{
     state.maintenance.push({
       id:'m'+(state.nextIds.mnt++), ...data,
-      status:'طلب جديد', reportDate:new Date().toISOString().slice(0,10), execDate:''
+      status:'طلب جديد', reportDate:new Date().toISOString().slice(0,10)
     });
   }
   await saveState(); closeModal(); render();
