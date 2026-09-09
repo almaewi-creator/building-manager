@@ -8,16 +8,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --navy:#33383f;
-    --navy-2:#24272d;
-    --teal:#ab8560;
-    --teal-dark:#8a6a45;
-    --teal-tint:#f4ede3;
-    --bg:#f6f4f0;
+    --navy:#0a6b3c;
+    --navy-2:#054a28;
+    --teal:#12a862;
+    --teal-dark:#0c7d47;
+    --teal-tint:#e6f7ee;
+    --bg:#f5faf7;
     --card:#ffffff;
-    --border:#e8e2d7;
+    --border:#dcece1;
     --text:#26282c;
-    --text-dim:#7a746b;
+    --text-dim:#71807a;
     --amber:#c98a2c;
     --amber-tint:#f7ecd6;
     --blue-tint:#eceef3;
@@ -27,7 +27,7 @@
     --red:#c1443a;
     --red-tint:#f8e6e3;
     --radius:14px;
-    --shadow:0 10px 28px rgba(36,32,26,.09);
+    --shadow:0 10px 28px rgba(10,60,35,.09);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -43,7 +43,7 @@
   .sidebar{
     width:230px;
     background:linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
-    color:#cfd3d8;
+    color:#dcf3e6;
     display:flex;
     flex-direction:column;
     flex-shrink:0;
@@ -52,7 +52,7 @@
   .sidebar-header{
     display:flex;align-items:center;gap:10px;
     padding:6px 6px 18px 6px;
-    border-bottom:1px solid rgba(255,255,255,.08);
+    border-bottom:1px solid rgba(255,255,255,.14);
     margin-bottom:14px;
   }
   .sidebar-logo{
@@ -64,29 +64,29 @@
   }
   .sidebar-logo img{width:100%;height:100%;object-fit:contain;padding:3px;}
   .sidebar-title{font-size:13px;font-weight:700;color:#fff;line-height:1.3;}
-  .sidebar-sub{font-size:10.5px;color:#9a9d9f;margin-top:1px;}
+  .sidebar-sub{font-size:10.5px;color:#a9d9bc;margin-top:1px;}
   .nav{display:flex;flex-direction:column;gap:3px;flex:1;}
   .nav-item{
     display:flex;align-items:center;gap:10px;
     padding:10px 12px;border-radius:9px;
     font-size:13.5px;font-weight:500;
-    color:#c2c4c7;cursor:pointer;
+    color:#c8ead6;cursor:pointer;
     border:none;background:none;text-align:right;width:100%;
     font-family:inherit;
     transition:background .15s,color .15s;
   }
   .nav-item .ic{width:17px;text-align:center;font-size:14px;flex-shrink:0;}
-  .nav-item:hover{background:rgba(255,255,255,.07);color:#fff;}
+  .nav-item:hover{background:rgba(255,255,255,.1);color:#fff;}
   .nav-item.active{background:var(--teal-dark);color:#fff;}
-  .nav-divider{height:1px;background:rgba(255,255,255,.1);margin:6px 4px;flex-shrink:0;}
-  .sidebar-footer{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:8px;}
+  .nav-divider{height:1px;background:rgba(255,255,255,.16);margin:6px 4px;flex-shrink:0;}
+  .sidebar-footer{border-top:1px solid rgba(255,255,255,.14);padding-top:12px;margin-top:8px;}
   .sidebar-user{
     display:flex;align-items:center;gap:9px;
     padding:8px 6px;border-radius:9px;margin-bottom:8px;
   }
-  .avatar{width:30px;height:30px;border-radius:50%;background:#3d434b;display:flex;align-items:center;justify-content:center;font-size:12px;color:#cfd3d8;flex-shrink:0;}
+  .avatar{width:30px;height:30px;border-radius:50%;background:#054a28;display:flex;align-items:center;justify-content:center;font-size:12px;color:#e6f7ee;flex-shrink:0;}
   .sidebar-user-name{font-size:12px;color:#fff;font-weight:600;}
-  .sidebar-user-role{font-size:10.5px;color:#9a9d9f;}
+  .sidebar-user-role{font-size:10.5px;color:#a9d9bc;}
 
   /* Main */
   .main{flex:1;padding:26px 30px;min-width:0;overflow-x:hidden;}
@@ -100,7 +100,7 @@
     font-family:inherit;display:inline-flex;align-items:center;gap:6px;
     transition:background .15s;
   }
-  .btn:hover{background:#74582f;}
+  .btn:hover{background:#095f36;}
   .btn-ghost{background:#fff;color:var(--text);border:1px solid var(--border);}
   .btn-ghost:hover{background:#faf8f4;}
   .btn-danger{background:var(--red-tint);color:var(--red);}
@@ -546,7 +546,7 @@ function fmt(n){ return Number(n).toLocaleString('ar-SA'); }
 /* ---------------- render router ---------------- */
 function render(){
   if(syncAllUnitsFinancials()) saveState();
-  document.getElementById('bldgName').textContent = state.buildingName;
+  document.getElementById('bldgName').textContent = state.buildingName + ' 🇸🇦';
   document.getElementById('bldgLogoImg').src = LOGO_URI;
   renderNav();
   const main = document.getElementById('main');
