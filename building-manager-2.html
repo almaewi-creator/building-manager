@@ -1674,6 +1674,36 @@ function readFileAsDataURL(file){
     r.readAsDataURL(file);
   });
 }
+/* Phone camera photos are often 8-15MB — way past what an invoice attachment
+   needs. Downscale to a reasonable max width and re-encode as JPEG so normal
+   photos comfortably fit the size limit without the person needing to resize
+   anything themselves. PDFs and already-small images pass through untouched. */
+function compressImageFile(file, maxWidth, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > maxWidth){ h = Math.round(h*(maxWidth/w)); w = maxWidth; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = ()=>reject(new Error('image load failed'));
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=>reject(new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+function estimateDataUrlBytes(dataUrl){
+  const idx = dataUrl.indexOf(',');
+  const b64 = idx>-1 ? dataUrl.slice(idx+1) : dataUrl;
+  return Math.ceil(b64.length * 0.75);
+}
 async function saveTx(id){
   const type = document.getElementById('f-txtype').value;
   const amount = Number(document.getElementById('f-txamount').value)||0;
@@ -1694,12 +1724,23 @@ async function saveTx(id){
   }
 
   if(file){
-    if(file.size > 4.5*1024*1024){
-      alert('حجم الملف كبير جدًا (الحد الأقصى تقريبًا 4.5 ميغابايت)');
+    let dataUrl, mimeType = file.type, sizeBytes = file.size;
+    if(file.type.startsWith('image/')){
+      try{
+        dataUrl = await compressImageFile(file, 1600, 0.75);
+        mimeType = 'image/jpeg';
+        sizeBytes = estimateDataUrlBytes(dataUrl);
+      }catch(e){
+        dataUrl = await readFileAsDataURL(file);
+      }
+    } else {
+      dataUrl = await readFileAsDataURL(file);
+    }
+    if(sizeBytes > 4.5*1024*1024){
+      alert('حجم الملف كبير جدًا حتى بعد الضغط (الحد الأقصى تقريبًا 4.5 ميغابايت) — جرب صورة أخرى أو ملف أصغر');
     } else {
       try{
-        const dataUrl = await readFileAsDataURL(file);
-        await storageSet('attachment:'+tx.id, JSON.stringify({name:file.name, type:file.type, data:dataUrl}));
+        await storageSet('attachment:'+tx.id, JSON.stringify({name:file.name, type:mimeType, data:dataUrl}));
         tx.hasAttachment = true;
         tx.attachmentName = file.name;
       }catch(e){ alert('تعذّر حفظ المرفق'); }
