@@ -335,25 +335,28 @@ function getSupabaseClient(){
   }
   return supabaseClient;
 }
+let lastCloudSyncOk = true;
 async function cloudGet(key){
   const client = getSupabaseClient();
-  if(!client) return null;
+  if(!client){ lastCloudSyncOk = false; return null; }
   try{
     const { data, error } = await client.from('app_state').select('data').eq('id', key).maybeSingle();
-    if(error){ console.error('Supabase get error', error); return null; }
+    if(error){ console.error('Supabase get error', error); lastCloudSyncOk = false; return null; }
+    lastCloudSyncOk = true;
     if(data && data.data) return JSON.stringify(data.data);
     return null;
-  }catch(e){ console.error('Supabase get exception', e); return null; }
+  }catch(e){ console.error('Supabase get exception', e); lastCloudSyncOk = false; return null; }
 }
 async function cloudSet(key, value){
   const client = getSupabaseClient();
-  if(!client) return false;
+  if(!client){ lastCloudSyncOk = false; return false; }
   try{
     const payload = JSON.parse(value);
     const { error } = await client.from('app_state').upsert({ id: key, data: payload, updated_at: new Date().toISOString() });
-    if(error){ console.error('Supabase set error', error); return false; }
+    if(error){ console.error('Supabase set error', error); lastCloudSyncOk = false; return false; }
+    lastCloudSyncOk = true;
     return true;
-  }catch(e){ console.error('Supabase set exception', e); return false; }
+  }catch(e){ console.error('Supabase set exception', e); lastCloudSyncOk = false; return false; }
 }
 
 const hasClaudeStorage = () => typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
@@ -411,11 +414,11 @@ async function manualSaveNow(btn){
   label.textContent = 'جارٍ الحفظ...';
   try{
     await saveState();
-    label.textContent = 'تم الحفظ ✅';
+    label.textContent = lastCloudSyncOk ? 'تم الحفظ بالسحابة ✅' : 'محفوظ محليًا بس ⚠';
   }catch(e){
     label.textContent = 'تعذّر الحفظ ⚠';
   }
-  setTimeout(()=>{ label.textContent = original; }, 1800);
+  setTimeout(()=>{ label.textContent = original; }, 2200);
 }
 
 /* ---------------- auth (Supabase Auth — real login, real password security) ---------------- */
@@ -568,6 +571,15 @@ function render(){
   renderNav();
   const main = document.getElementById('main');
   main.innerHTML = '';
+  if(!lastCloudSyncOk){
+    const warn = document.createElement('div');
+    warn.className = 'alert-banner amber';
+    warn.style.marginBottom = '16px';
+    warn.innerHTML = `<div class="alert-icon">⚠</div>
+      <div class="alert-text"><b>تعذّر الوصول للسحابة</b><span>آخر تعديل انحفظ على هذا الجهاز بس، ولسا ما وصل للسحابة — تأكد من الإنترنت وسجّل دخولك من جديد إذا استمرت المشكلة.</span></div>
+      <button class="btn-ghost btn-sm" onclick="retryCloudSync()">🔄 إعادة المحاولة</button>`;
+    main.appendChild(warn);
+  }
   if(currentView==='dashboard') renderDashboard(main);
   else if(currentView==='units') renderUnits(main);
   else if(currentView==='owners') renderOwners(main);
@@ -575,6 +587,10 @@ function render(){
   else if(currentView==='finance') renderFinance(main);
   else if(currentView==='equipment') renderEquipment(main);
   else if(currentView==='maintenance') renderMaintenance(main);
+}
+async function retryCloudSync(){
+  await saveState();
+  render();
 }
 
 function topbar(main, eyebrow, title, desc, actionsHtml){
