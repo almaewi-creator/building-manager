@@ -321,6 +321,7 @@ function defaultState(){
     transactions: [],
     equipment: [],
     maintenance: [],
+    driverRooms: [1,2,3,4,5].map(n=>({id:'dr'+n, number:n, tenant:'', monthlyRent:0, collected:0})),
     nextIds: {owner:31, unit:31, tx:1, eq:1, mnt:1}
   };
 }
@@ -416,9 +417,20 @@ async function storageRemove(key){
 
 async function loadState(){
   const raw = await storageGet(STORE_KEY);
-  if(raw){ try{ state = JSON.parse(raw); return; }catch(e){} }
+  if(raw){
+    try{
+      state = JSON.parse(raw);
+      migrateState();
+      return;
+    }catch(e){}
+  }
   state = defaultState();
   await saveState();
+}
+function migrateState(){
+  if(!state.driverRooms){
+    state.driverRooms = [1,2,3,4,5].map(n=>({id:'dr'+n, number:n, tenant:'', monthlyRent:0, collected:0}));
+  }
 }
 async function saveState(){
   await storageSet(STORE_KEY, JSON.stringify(state));
@@ -536,6 +548,7 @@ const NAV = [
   {id:'units', label:'الشقق', icon:'🏢'},
   {id:'owners', label:'الملاك', icon:'👥'},
   {id:'payments', label:'الدفعات الشهرية', icon:'💳'},
+  {id:'driverRooms', label:'غرف السواقين', icon:'🚗'},
   {id:'finance', label:'الإيرادات والمصروفات', icon:'📊'},
   {id:'equipment', label:'معدات المبنى', icon:'⚙'},
   {id:'maintenance', label:'الصيانة', icon:'🛠'}
@@ -599,6 +612,7 @@ function render(){
   else if(currentView==='units') renderUnits(main);
   else if(currentView==='owners') renderOwners(main);
   else if(currentView==='payments') renderPayments(main);
+  else if(currentView==='driverRooms') renderDriverRooms(main);
   else if(currentView==='finance') renderFinance(main);
   else if(currentView==='equipment') renderEquipment(main);
   else if(currentView==='maintenance') renderMaintenance(main);
@@ -1557,6 +1571,114 @@ function confirmPrintDefaulters(){
 }
 
 /* ---------------- finance ---------------- */
+/* ---------------- driver rooms (separate rental income stream) ---------------- */
+function renderDriverRooms(main){
+  topbar(main, state.buildingName, 'غرف السواقين', 'إيجار غرف السواقين الخمسة — منفصل عن اشتراكات الشقق، ويُضاف تلقائيًا لإجمالي الإيرادات.',
+    '<button class="btn-ghost btn-sm" onclick="printDriverRoomsReport()">🖨 طباعة كشف الغرف</button>');
+
+  const totalMonthly = state.driverRooms.reduce((s,r)=>s+Number(r.monthlyRent||0),0);
+  const totalCollected = state.driverRooms.reduce((s,r)=>s+Number(r.collected||0),0);
+  const stats = document.createElement('div');
+  stats.className='stats-row';
+  stats.style.gridTemplateColumns='repeat(2,1fr)';
+  stats.innerHTML = `
+    <div class="stat-card tint-blue"><div class="lbl">إجمالي الإيجار الشهري (٥ غرف)</div><div class="num">${fmt(totalMonthly)} ر.س</div></div>
+    <div class="stat-card tint-green"><div class="lbl">إجمالي المحصّل (كل الوقت)</div><div class="num">${fmt(totalCollected)} ر.س</div></div>
+  `;
+  main.appendChild(stats);
+
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  const rows = state.driverRooms.map(r=>`<tr>
+      <td><b>غرفة ${r.number}</b></td>
+      <td>${esc(r.tenant)||'<span style="color:var(--text-dim);">— بدون مستأجر —</span>'}</td>
+      <td>${fmt(r.monthlyRent)} ر.س</td>
+      <td><b style="color:var(--green);">${fmt(r.collected)} ر.س</b></td>
+      <td>
+        <button class="icon-btn" onclick="openDriverRoomModal('${r.id}')">تعديل</button>
+        ${r.tenant && Number(r.monthlyRent)>0 ? `<button class="icon-btn" onclick="recordDriverRoomPayment('${r.id}')">+ تسجيل دفعة الشهر</button>` : ''}
+      </td>
+    </tr>`).join('');
+  panel.innerHTML = `<div class="panel-title">غرف السواقين</div>
+    <table><thead><tr><th>الغرفة</th><th>اسم المستأجر</th><th>الأجر الشهري</th><th>الإجمالي المحصّل</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  main.appendChild(panel);
+}
+function openDriverRoomModal(id){
+  const r = state.driverRooms.find(x=>x.id===id);
+  showModal(`
+    <h3>تعديل غرفة ${r.number}</h3>
+    <div class="field"><label>اسم المستأجر</label><input id="f-drtenant" value="${esc(r.tenant)}"></div>
+    <div class="field"><label>الأجر الشهري (ر.س)</label><input id="f-drrent" type="number" value="${r.monthlyRent}"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="saveDriverRoom('${id}')">حفظ</button>
+    </div>
+  `);
+}
+async function saveDriverRoom(id){
+  const r = state.driverRooms.find(x=>x.id===id);
+  r.tenant = document.getElementById('f-drtenant').value.trim();
+  r.monthlyRent = Number(document.getElementById('f-drrent').value)||0;
+  await saveState(); closeModal(); render();
+}
+async function recordDriverRoomPayment(id){
+  const r = state.driverRooms.find(x=>x.id===id);
+  const amount = Number(r.monthlyRent)||0;
+  if(amount<=0) return;
+  r.collected = Number(r.collected||0) + amount;
+  state.transactions.push({
+    id:'t'+(state.nextIds.tx++),
+    type:'income', amount, category:'إيجار غرف السواقين',
+    method:'كاش', note:`إيجار غرفة ${r.number} — ${r.tenant}`,
+    date:new Date().toISOString().slice(0,10), hasAttachment:false
+  });
+  await saveState(); render();
+}
+function buildDriverRoomsReportHTML(){
+  const today = new Date().toLocaleDateString('ar-SA');
+  const totalMonthly = state.driverRooms.reduce((s,r)=>s+Number(r.monthlyRent||0),0);
+  const totalCollected = state.driverRooms.reduce((s,r)=>s+Number(r.collected||0),0);
+  const rows = state.driverRooms.map(r=>`<tr>
+      <td>غرفة ${r.number}</td>
+      <td>${esc(r.tenant)||'—'}</td>
+      <td>${fmt(r.monthlyRent)} ر.س</td>
+      <td style="font-weight:700;color:#2f8f5b;">${fmt(r.collected)} ر.س</td>
+    </tr>`).join('');
+  return `
+  <div class="stmt-page">
+    <div class="stmt-header">
+      <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
+      <div>
+        <div class="stmt-building">${esc(state.buildingName)}</div>
+        <div class="stmt-title">كشف غرف السواقين</div>
+      </div>
+      <div class="stmt-date">تاريخ الطباعة: ${today}</div>
+    </div>
+    <table class="stmt-info">
+      <tr><td><b>إجمالي الإيجار الشهري:</b> ${fmt(totalMonthly)} ر.س</td><td><b>إجمالي المحصّل (كل الوقت):</b> ${fmt(totalCollected)} ر.س</td></tr>
+    </table>
+    <table class="stmt-table">
+      <thead><tr><th>الغرفة</th><th>اسم المستأجر</th><th>الأجر الشهري</th><th>الإجمالي المحصّل</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
+    <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
+  </div>`;
+}
+function printDriverRoomsReport(){
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>كشف غرف السواقين - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}</style></head>
+    <body>${buildDriverRoomsReportHTML()}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
 function renderFinance(main){
   topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة.',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printFinanceReport()">🖨 طباعة التقرير المالي</button>'+
