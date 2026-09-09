@@ -418,51 +418,48 @@ async function manualSaveNow(btn){
   setTimeout(()=>{ label.textContent = original; }, 1800);
 }
 
-/* ---------------- auth (basic privacy gate, not real security) ---------------- */
-const AUTH_KEY = 'building30-auth-v1';
-const SESSION_KEY = 'building30-session';
-
-async function sha256(text){
-  const enc = new TextEncoder().encode(text);
-  const buf = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+/* ---------------- auth (Supabase Auth — real login, real password security) ---------------- */
+async function supaGetSession(){
+  const client = getSupabaseClient();
+  if(!client) return null;
+  try{
+    const { data } = await client.auth.getSession();
+    return data && data.session ? data.session : null;
+  }catch(e){ return null; }
 }
-async function getAuth(){
-  const raw = await storageGet(AUTH_KEY);
-  return raw ? JSON.parse(raw) : null;
+async function supaLogin(email, password){
+  const client = getSupabaseClient();
+  if(!client) return { data:null, error: { message: 'تعذّر الاتصال بالخادم' } };
+  return await client.auth.signInWithPassword({ email, password });
 }
-async function setAuth(username, password){
-  const hash = await sha256(password);
-  await storageSet(AUTH_KEY, JSON.stringify({username, hash}));
+async function supaLogout(){
+  const client = getSupabaseClient();
+  if(client){ try{ await client.auth.signOut(); }catch(e){} }
 }
-function isSessionActive(){
-  try{ return sessionStorage.getItem(SESSION_KEY) === '1'; }catch(e){ return false; }
-}
-function setSessionActive(v){
-  try{ if(v) sessionStorage.setItem(SESSION_KEY,'1'); else sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+async function supaResetPassword(email){
+  const client = getSupabaseClient();
+  if(!client) return { error: { message: 'تعذّر الاتصال بالخادم' } };
+  return await client.auth.resetPasswordForEmail(email);
 }
 function logout(){
-  setSessionActive(false);
-  location.reload();
+  supaLogout().then(()=>location.reload());
 }
 
-function showAuthScreen(mode, auth, errorMsg){
+function showAuthScreen(mode, session, errorMsg){
   document.getElementById('app').style.display = 'none';
   const el = document.getElementById('authScreen');
   el.style.display = 'flex';
 
-  if(mode === 'setup'){
+  if(mode === 'reset'){
     el.innerHTML = `
       <div class="auth-card">
         <div class="auth-logo"><img src="${LOGO_URI}" alt="شعار"></div>
-        <h2>إعداد الدخول</h2>
-        <p class="sub">أول استخدام — أنشئ اسم مستخدم وكلمة مرور للدخول إلى لوحة العمارة</p>
+        <h2>استعادة كلمة المرور</h2>
+        <p class="sub">أدخل بريدك الإلكتروني، بنرسل لك رابط لإعادة تعيين كلمة المرور</p>
         <div class="auth-error ${errorMsg?'show':''}">${errorMsg||''}</div>
-        <div class="field"><label>اسم المستخدم</label><input id="au-user" autocomplete="username"></div>
-        <div class="field"><label>كلمة المرور</label><input id="au-pass" type="password" autocomplete="new-password"></div>
-        <div class="field"><label>تأكيد كلمة المرور</label><input id="au-pass2" type="password" autocomplete="new-password"></div>
-        <button class="btn" style="width:100%;justify-content:center;" onclick="submitSetup()">إنشاء وتسجيل الدخول</button>
-        <div class="auth-note">هذه حماية بسيطة على مستوى المتصفح لإبعاد الزوار العابرين، وليست تشفيرًا حقيقيًا — أي شخص يملك الوصول لملف الصفحة يقدر يتجاوزها تقنيًا.</div>
+        <div class="field"><label>البريد الإلكتروني</label><input id="au-email" type="email" autocomplete="username"></div>
+        <button class="btn" style="width:100%;justify-content:center;" onclick="submitReset()">إرسال رابط الاستعادة</button>
+        <div class="auth-links"><button onclick="showAuthScreen('login', null, '')">رجوع لتسجيل الدخول</button></div>
       </div>`;
   } else {
     el.innerHTML = `
@@ -471,66 +468,47 @@ function showAuthScreen(mode, auth, errorMsg){
         <h2>تسجيل الدخول</h2>
         <p class="sub">${state && state.buildingName ? state.buildingName : 'لوحة إدارة العمارة'}</p>
         <div class="auth-error ${errorMsg?'show':''}">${errorMsg||''}</div>
-        <div class="field"><label>اسم المستخدم</label><input id="au-user" autocomplete="username"></div>
+        <div class="field"><label>البريد الإلكتروني</label><input id="au-email" type="email" autocomplete="username"></div>
         <div class="field"><label>كلمة المرور</label><input id="au-pass" type="password" autocomplete="current-password"></div>
         <button class="btn" style="width:100%;justify-content:center;" onclick="submitLogin()">دخول</button>
-        <div class="auth-links"><button onclick="confirmReset()">نسيت البيانات؟ إعادة تعيين الدخول</button></div>
+        <div class="auth-links"><button onclick="showAuthScreen('reset', null, '')">نسيت كلمة المرور؟</button></div>
       </div>`;
   }
-  const first = el.querySelector('#au-user');
+  const first = el.querySelector('#au-email');
   if(first) setTimeout(()=>first.focus(), 50);
   el.querySelectorAll('input').forEach(inp=>{
-    inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ mode==='setup' ? submitSetup() : submitLogin(); } });
+    inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ mode==='reset' ? submitReset() : submitLogin(); } });
   });
 }
 
-async function submitSetup(){
-  const user = document.getElementById('au-user').value.trim();
-  const pass = document.getElementById('au-pass').value;
-  const pass2 = document.getElementById('au-pass2').value;
-  if(!user || !pass){ showAuthScreen('setup', null, 'الرجاء تعبئة اسم المستخدم وكلمة المرور'); return; }
-  if(pass.length < 4){ showAuthScreen('setup', null, 'كلمة المرور قصيرة جدًا (٤ أحرف على الأقل)'); return; }
-  if(pass !== pass2){ showAuthScreen('setup', null, 'كلمتا المرور غير متطابقتين'); return; }
-  await setAuth(user, pass);
-  setSessionActive(true);
-  await enterApp();
-}
 async function submitLogin(){
-  const user = document.getElementById('au-user').value.trim();
+  const email = document.getElementById('au-email').value.trim();
   const pass = document.getElementById('au-pass').value;
-  const auth = await getAuth();
-  const hash = await sha256(pass);
-  if(!auth || auth.username !== user || auth.hash !== hash){
-    showAuthScreen('login', auth, 'اسم المستخدم أو كلمة المرور غير صحيحة');
+  if(!email || !pass){ showAuthScreen('login', null, 'الرجاء تعبئة البريد الإلكتروني وكلمة المرور'); return; }
+  const { data, error } = await supaLogin(email, pass);
+  if(error || !data || !data.session){
+    showAuthScreen('login', null, 'البريد الإلكتروني أو كلمة المرور غير صحيحة');
     return;
   }
-  setSessionActive(true);
   await enterApp();
 }
-function confirmReset(){
-  showModal(`
-    <h3>إعادة تعيين بيانات الدخول</h3>
-    <p style="font-size:13.5px;color:var(--text-dim);line-height:1.7;">
-      سيتم حذف اسم المستخدم وكلمة المرور الحاليين فقط، وستُطلب منك إنشاء دخول جديد.
-      بيانات العمارة (الشقق، الملاك، الصيانة...) لن تتأثر وتبقى محفوظة.
-    </p>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
-      <button class="btn-danger" onclick="doResetAuth()">تأكيد إعادة التعيين</button>
-    </div>
-  `);
-}
-async function doResetAuth(){
-  await storageRemove(AUTH_KEY);
-  closeModal();
-  showAuthScreen('setup', null, '');
+async function submitReset(){
+  const email = document.getElementById('au-email').value.trim();
+  if(!email){ showAuthScreen('reset', null, 'الرجاء إدخال البريد الإلكتروني'); return; }
+  const { error } = await supaResetPassword(email);
+  if(error){
+    showAuthScreen('reset', null, 'تعذّر إرسال الرابط، تأكد من البريد الإلكتروني');
+    return;
+  }
+  showAuthScreen('login', null, 'تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني ✅');
 }
 async function enterApp(){
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+
   if(!state) await loadState();
-  const auth = await getAuth();
-  if(auth) document.getElementById('authUserLabel').textContent = auth.username;
+  const session = await supaGetSession();
+  if(session && session.user) document.getElementById('authUserLabel').textContent = session.user.email;
   render();
 }
 
@@ -1992,13 +1970,11 @@ document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.
 (async function boot(){
   await loadState(); // load building data in the background either way
   await saveState(); // push straight to the cloud so existing local data migrates immediately
-  const auth = await getAuth();
-  if(!auth){
-    showAuthScreen('setup', null, '');
-  } else if(isSessionActive()){
+  const session = await supaGetSession();
+  if(session){
     await enterApp();
   } else {
-    showAuthScreen('login', auth, '');
+    showAuthScreen('login', null, '');
   }
 })();
 </script>
