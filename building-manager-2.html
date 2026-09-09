@@ -6,6 +6,7 @@
 <title>إدارة العمارة</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --navy:#0a6b3c;
@@ -324,6 +325,37 @@ function defaultState(){
   };
 }
 
+/* ---------------- cloud storage (Supabase) ---------------- */
+const SUPABASE_URL = "https://oozvrsncwzausokcenhy.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_juhc8_HhtPYLlYtaVGb0XA_ZBnzQO3e";
+let supabaseClient = null;
+function getSupabaseClient(){
+  if(!supabaseClient && typeof supabase !== 'undefined' && supabase.createClient){
+    try{ supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){ console.error('Supabase init failed', e); }
+  }
+  return supabaseClient;
+}
+async function cloudGet(key){
+  const client = getSupabaseClient();
+  if(!client) return null;
+  try{
+    const { data, error } = await client.from('app_state').select('data').eq('id', key).maybeSingle();
+    if(error){ console.error('Supabase get error', error); return null; }
+    if(data && data.data) return JSON.stringify(data.data);
+    return null;
+  }catch(e){ console.error('Supabase get exception', e); return null; }
+}
+async function cloudSet(key, value){
+  const client = getSupabaseClient();
+  if(!client) return false;
+  try{
+    const payload = JSON.parse(value);
+    const { error } = await client.from('app_state').upsert({ id: key, data: payload, updated_at: new Date().toISOString() });
+    if(error){ console.error('Supabase set error', error); return false; }
+    return true;
+  }catch(e){ console.error('Supabase set exception', e); return false; }
+}
+
 const hasClaudeStorage = () => typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
 let hasLocalStorage = false;
 try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); hasLocalStorage = true; }catch(e){ hasLocalStorage = false; }
@@ -332,6 +364,10 @@ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); hasLocalSt
 // fall back to the browser's own localStorage (works when the file is opened
 // directly / hosted anywhere else), so data survives either way.
 async function storageGet(key){
+  if(key === STORE_KEY){
+    const cloudVal = await cloudGet(key);
+    if(cloudVal) return cloudVal;
+  }
   if(hasClaudeStorage()){
     try{ const r = await window.storage.get(key, false); if(r && r.value) return r.value; }catch(e){}
   }
@@ -341,6 +377,9 @@ async function storageGet(key){
   return null;
 }
 async function storageSet(key, value){
+  if(key === STORE_KEY){
+    await cloudSet(key, value);
+  }
   if(hasClaudeStorage()){
     try{ await window.storage.set(key, value, false); }catch(e){}
   }
@@ -1952,6 +1991,7 @@ document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.
 /* ---------------- boot ---------------- */
 (async function boot(){
   await loadState(); // load building data in the background either way
+  await saveState(); // push straight to the cloud so existing local data migrates immediately
   const auth = await getAuth();
   if(!auth){
     showAuthScreen('setup', null, '');
