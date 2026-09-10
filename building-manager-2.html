@@ -1111,32 +1111,43 @@ function monthLabel(key){
 }
 function buildOwnerStatementHTML(owner){
   const units = state.units.filter(u=>u.owner===owner.name);
-  const totalDue = units.reduce((s,u)=>s+Number(u.totalDue||0),0);
-  const totalCollected = units.reduce((s,u)=>s+Number(u.collected||0),0);
+  /* Compute fresh from the actual payment records rather than trusting the
+     cached u.collected/u.duesThisYear/u.totalDue fields, which only get
+     refreshed when syncAllUnitsFinancials() happens to run — printing should
+     never show a stale number. */
+  const live = units.map(u=>{
+    const collected = computeUnitCollected(u);
+    const arrearsPrevious = Number(u.arrearsPrevious||0);
+    const duesThisYear = computeUnitDuesThisYear(u);
+    const totalDue = arrearsPrevious + duesThisYear;
+    return {u, collected, arrearsPrevious, duesThisYear, totalDue};
+  });
+  const totalDue = live.reduce((s,x)=>s+x.totalDue,0);
+  const totalCollected = live.reduce((s,x)=>s+x.collected,0);
 
   let unitsRows = '';
-  units.forEach(u=>{
+  live.forEach(({u,collected,arrearsPrevious,duesThisYear,totalDue})=>{
     unitsRows += `<tr>
       <td>${u.number}</td>
       <td>${fmt(u.monthlyFee||200)} ر.س</td>
-      <td>${fmt(u.collected||0)} ر.س</td>
-      <td>${fmt(u.arrearsPrevious||0)} ر.س</td>
-      <td>${fmt(u.duesThisYear||0)} ر.س</td>
-      <td style="font-weight:700;color:${Number(u.totalDue)<0?'#c0392b':'#1f9d55'}">${fmt(u.totalDue||0)} ر.س</td>
+      <td>${fmt(collected)} ر.س</td>
+      <td>${fmt(arrearsPrevious)} ر.س</td>
+      <td>${fmt(duesThisYear)} ر.س</td>
+      <td style="font-weight:700;color:${totalDue<0?'#c0392b':'#1f9d55'}">${fmt(totalDue)} ر.س</td>
     </tr>`;
   });
 
   let paymentsRows = '';
+  const stmtStartMonth = firstBillingMonthKey();
   const stmtEndMonth = lastCompletedMonthKey();
   units.forEach(u=>{
-    const keys = Object.keys(state.payments)
-      .filter(k=>k.startsWith(u.id+'|'))
-      .filter(k=>k.split('|')[1] <= stmtEndMonth) /* never print a month that hasn't fully elapsed yet, even if a record for it exists */
-      .sort();
-    if(keys.length===0) return;
-    keys.forEach(k=>{
-      const month = k.split('|')[1];
-      const rec = state.payments[k];
+    /* List every month in the billing range, not just ones with an explicit
+       saved record — otherwise an unpaid month nobody has clicked on yet
+       (like a fresh default-due month) silently disappears from the printed
+       log even though it's counted in the totals above. */
+    const months = monthsBetweenInclusive(stmtStartMonth, stmtEndMonth);
+    months.forEach(month=>{
+      const rec = state.payments[u.id+'|'+month] || {paid:false, amount:u.monthlyFee||200};
       paymentsRows += `<tr>
         <td>${u.number}</td>
         <td>${monthLabel(month)}</td>
