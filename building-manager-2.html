@@ -1861,6 +1861,7 @@ function printDriverRoomsReport(){
   w.document.close();
 }
 
+let financeFilter = 'all';
 function renderFinance(main){
   topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة.',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printFinanceReport()">🖨 طباعة التقرير المالي</button>'+
@@ -1878,10 +1879,25 @@ function renderFinance(main){
   `;
   main.appendChild(stats);
 
+  const tabs = document.createElement('div');
+  tabs.style.cssText='display:flex;gap:8px;margin:14px 0;';
+  const tabDef = [['all','الكل',state.transactions.length],['income','إيرادات فقط',state.transactions.filter(t=>t.type==='income').length],['expense','مصروفات فقط',state.transactions.filter(t=>t.type==='expense').length]];
+  tabs.innerHTML = tabDef.map(([key,label,count])=>
+    `<button class="btn-ghost btn-sm" onclick="financeFilter='${key}';render();" style="${financeFilter===key?'background:var(--teal-dark);color:#fff;border-color:var(--teal-dark);':''}">${label} (${count})</button>`
+  ).join('');
+  main.appendChild(tabs);
+
   const panel = document.createElement('div');
   panel.className='panel';
   let rows='';
-  [...state.transactions].reverse().forEach(t=>{
+  const filtered = state.transactions.filter(t=>financeFilter==='all'||t.type===financeFilter);
+  /* sort by the transaction/invoice date itself (newest first), not by
+     when it was entered into the system; ties broken by entry order */
+  const sorted = filtered
+    .map((t,i)=>({t,i}))
+    .sort((a,b)=> (b.t.date||'').localeCompare(a.t.date||'') || (b.i-a.i))
+    .map(x=>x.t);
+  sorted.forEach(t=>{
     rows += `<tr>
       <td>${t.date}</td>
       <td>${statusBadge(t.type==='income'?'مدفوعة':'غير مدفوعة').replace(t.type==='income'?'مدفوعة':'غير مدفوعة', t.type==='income'?'إيراد':'مصروف')}</td>
