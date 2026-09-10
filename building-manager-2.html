@@ -1127,8 +1127,12 @@ function buildOwnerStatementHTML(owner){
   });
 
   let paymentsRows = '';
+  const stmtEndMonth = lastCompletedMonthKey();
   units.forEach(u=>{
-    const keys = Object.keys(state.payments).filter(k=>k.startsWith(u.id+'|')).sort();
+    const keys = Object.keys(state.payments)
+      .filter(k=>k.startsWith(u.id+'|'))
+      .filter(k=>k.split('|')[1] <= stmtEndMonth) /* never print a month that hasn't fully elapsed yet, even if a record for it exists */
+      .sort();
     if(keys.length===0) return;
     keys.forEach(k=>{
       const month = k.split('|')[1];
