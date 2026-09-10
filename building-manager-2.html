@@ -1757,6 +1757,34 @@ function renderSettings(main){
     </div>
   `;
   main.appendChild(panel2);
+
+  const affectedCount = state.units.filter(u=>/وحدة/.test(u.number||'')).length;
+  if(affectedCount>0){
+    const panel3 = document.createElement('div');
+    panel3.className = 'panel';
+    panel3.innerHTML = `
+      <div class="panel-title">تسمية الشقق</div>
+      <p style="font-size:12.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">
+        لاحظنا ${affectedCount} ${affectedCount===1?'شقة مسمّاة':'شقق مسمّاة'} بكلمة "وحدة" بدل "شقة" (مثال: "وحدة 601"). هذا الزر يستبدلها كلها بكلمة "شقة" دفعة وحدة، للتناسق مع باقي الشقق.
+      </p>
+      <div class="modal-actions" style="margin-top:6px;max-width:260px;">
+        <button class="btn" onclick="renameUnitsToShaqqa()">استبدال "وحدة" بـ"شقة" في كل الشقق</button>
+      </div>
+    `;
+    main.appendChild(panel3);
+  }
+}
+async function renameUnitsToShaqqa(){
+  let changed = 0;
+  state.units.forEach(u=>{
+    if(/وحدة/.test(u.number||'')){
+      u.number = u.number.replace(/وحدة/g, 'شقة');
+      changed++;
+    }
+  });
+  if(changed>0){ await saveState(); }
+  render();
+  alert(changed>0 ? `تم تصحيح تسمية ${changed} شقة ✅` : 'ما فيه شي يحتاج تصحيح 🎉');
 }
 async function setBillingMode(ignoreStart){
   state.billingModeIgnoreStart = ignoreStart;
