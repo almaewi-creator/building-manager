@@ -1633,11 +1633,14 @@ function confirmPrintDefaulters(){
 
 /* ---------------- finance ---------------- */
 /* ---------------- driver rooms (separate rental income stream) ---------------- */
+/* Rooms follow the same rule as units: the current month isn't "due" until it
+   has fully elapsed, so we only count up through the last completed month. */
 function computeRoomDue(room){
   if(!room.tenant || !room.startMonth || Number(room.monthlyRent)<=0){
     return { monthsDue:0, totalDue:0, remaining:0 };
   }
-  const months = monthsBetweenInclusive(room.startMonth, currentMonthKey());
+  const end = lastCompletedMonthKey();
+  const months = monthsBetweenInclusive(room.startMonth, end);
   const monthsDue = months.length;
   const totalDue = monthsDue * Number(room.monthlyRent);
   const remaining = totalDue - Number(room.collected||0);
