@@ -899,9 +899,19 @@ function renderDashboard(main){
     debtPanel.innerHTML += '<div class="empty">لا يوجد أعضاء متأخرون 🎉</div>';
   } else {
     debtors.forEach(u=>{
+      const prev = Number(u.arrearsPrevious||0);
+      const cur = Number(u.duesThisYear||0);
+      const badges = [
+        prev<0 ? `<span class="badge gray" title="مستحقات قبل بدء النظام">سابقة: ${fmt(Math.abs(prev))}</span>` : '',
+        cur<0 ? `<span class="badge red" title="مستحقات ضمن فترة النظام">حالية: ${fmt(Math.abs(cur))}</span>` : ''
+      ].filter(Boolean).join(' ');
       const row = document.createElement('div');
-      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);';
-      row.innerHTML = `<div><div style="font-weight:700;font-size:13.5px;">${u.owner} — ${u.number}</div><div style="font-size:12px;color:var(--text-dim);">${u.phone}</div></div><b style="color:var(--red);">${fmt(u.totalDue)} ر.س</b>`;
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;';
+      row.innerHTML = `<div><div style="font-weight:700;font-size:13.5px;">${u.owner} — ${u.number}</div><div style="font-size:12px;color:var(--text-dim);">${u.phone}</div></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;">${badges}</div>
+          <b style="color:var(--red);font-size:14px;">${fmt(u.totalDue)} ر.س</b>
+        </div>`;
       debtPanel.appendChild(row);
     });
   }
@@ -1383,13 +1393,17 @@ function renderPayments(main){
   if(defaulters.length===0){
     defRows = '<div class="empty">لا يوجد أعضاء متأخرون 🎉</div>';
   } else {
-    defRows = `<table><thead><tr><th>الشقة</th><th>العضو</th><th>الجوال</th><th>المتأخر</th><th>آخر متابعة</th></tr></thead><tbody>` +
+    defRows = `<table><thead><tr><th>الشقة</th><th>العضو</th><th>الجوال</th><th>مستحقات سابقة</th><th>مستحقات حالية</th><th>الإجمالي</th><th>آخر متابعة</th></tr></thead><tbody>` +
       defaulters.map(u=>{
         const lastNote = (u.notes&&u.notes.length) ? u.notes[u.notes.length-1] : null;
+        const prev = Number(u.arrearsPrevious||0);
+        const cur = Number(u.duesThisYear||0);
         return `<tr>
         <td><b>${esc(u.number)}</b></td>
         <td>${esc(u.owner)}</td>
         <td dir="ltr" style="text-align:right;">${esc(u.phone||'—')}</td>
+        <td>${prev<0?`<span class="badge gray">${fmt(Math.abs(prev))} ر.س</span>`:'<span style="color:var(--text-dim);">—</span>'}</td>
+        <td>${cur<0?`<span class="badge red">${fmt(Math.abs(cur))} ر.س</span>`:'<span style="color:var(--text-dim);">—</span>'}</td>
         <td><b style="color:var(--red);">${fmt(Math.abs(u.totalDue))} ر.س</b></td>
         <td style="font-size:12px;color:var(--text-dim);">${lastNote?esc(lastNote.date)+' — '+esc(lastNote.text):'—'} <button class="icon-btn" style="margin-inline-start:4px;" onclick="openUnitModal('${u.id}')">✎</button></td>
       </tr>`;}).join('') + `</tbody></table>`;
