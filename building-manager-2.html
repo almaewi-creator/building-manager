@@ -795,6 +795,23 @@ function buildArrearsBarChartSVG(defaulters, opts){
   });
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${Math.min(h,compact?140:260)}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">${gridLines}${gridLabels}${bars}</svg>`;
 }
+function buildArrearsHBarListHTML(defaulters, opts){
+  if(defaulters.length===0) return '<div class="chart-empty">لا يوجد أعضاء متأخرون لعرضهم 🎉</div>';
+  const compact = opts && opts.compact;
+  const maxVal = Math.max(1, ...defaulters.map(u=>Math.abs(u.totalDue)));
+  const rows = defaulters.map(u=>{
+    const val = Math.abs(u.totalDue);
+    const pct = Math.max(4, Math.round((val/maxVal)*100));
+    const color = arrearsSeverityColor(val);
+    const unitNum = (String(u.number).match(/\d+/)||[u.number])[0];
+    return `<div class="hbar-row${compact?' hbar-row-compact':''}">
+      <div class="hbar-label">${esc(unitNum)}</div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${color};"></div></div>
+      <div class="hbar-value">${fmt(val)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="hbar-list${compact?' hbar-list-compact':''}">${rows}</div>`;
+}
 function buildArrearsSeverityLegendHTML(){
   return `<div class="chart-legend" style="margin-top:4px;">
     <span><i style="background:#f0a75c"></i>أقل من 400 ر.س</span>
@@ -1616,8 +1633,8 @@ function buildDefaultersReportHTML(opts){
     </table></div>
     ${rowsData.length>0 ? `
     <div class="stmt-chart-wrap stmt-chart-compact">
-      <div class="stmt-section-title" style="text-align:center;">الرسم البياني للمتأخرات حسب الشقة</div>
-      ${buildArrearsBarChartSVG(chartData, {compact:true})}
+      <div class="stmt-section-title" style="text-align:center;">المتأخرات حسب الشقة</div>
+      ${buildArrearsHBarListHTML(chartData, {compact:true})}
       ${buildArrearsSeverityLegendHTML()}
     </div>
     ` : ''}
@@ -1640,17 +1657,20 @@ function printDefaultersReport(opts){
       .stmt-page-wide{ max-width:100%; }
       .defaulters-detail-table th, .defaulters-detail-table td{ padding:4px 6px; font-size:10.5px; white-space:nowrap; }
       .stmt-chart-wrap{ margin:6px 0 8px 0; }
-      .stmt-chart-wrap svg{ display:block; width:100%; height:auto; max-width:640px; margin:0 auto; }
       @media print{ .stmt-chart-wrap{ page-break-inside:avoid; } }
-      .stmt-chart-compact{ max-width:280px; margin:8px 0 0 0; text-align:left; float:left; }
-      .stmt-chart-wrap .stmt-section-title{ text-align:left !important; }
-      .stmt-chart-compact svg{ max-width:260px; max-height:130px; }
-      .chart-legend{ display:flex; gap:16px; justify-content:flex-start; font-size:10.5px; color:#6b7684; margin-top:4px; }
+      .stmt-chart-compact{ max-width:460px; margin:8px auto 0 auto; }
+      .hbar-list{ display:flex; flex-direction:column; gap:5px; margin-top:6px; }
+      .hbar-row{ display:flex; align-items:center; gap:8px; }
+      .hbar-label{ width:30px; flex-shrink:0; font-size:10.5px; font-weight:700; text-align:center; }
+      .hbar-track{ flex:1; height:11px; background:#f0eee9; border-radius:6px; overflow:hidden; }
+      .hbar-fill{ height:100%; border-radius:6px; }
+      .hbar-value{ width:55px; flex-shrink:0; font-size:10.5px; font-weight:700; text-align:left; }
+      .chart-legend{ display:flex; gap:16px; justify-content:center; font-size:10.5px; color:#6b7684; margin-top:6px; }
       .chart-legend span{ display:inline-flex; align-items:center; gap:5px; }
       .chart-legend i{ width:9px; height:9px; border-radius:3px; display:inline-block; }
-      .stmt-stamp-wrap{ position:fixed; left:50%; bottom:40px; transform:translateX(-50%); margin-top:0; text-align:center; }
+      .stmt-stamp-wrap{ margin-top:14px; text-align:center; }
       .stmt-stamp{ width:90px; }
-      .stmt-footer{ margin-top:8px; font-size:10px; text-align:center; clear:both; }
+      .stmt-footer{ margin-top:8px; font-size:10px; text-align:center; }
     </style></head>
     <body>${buildDefaultersReportHTML(opts)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
