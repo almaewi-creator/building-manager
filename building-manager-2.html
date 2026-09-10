@@ -435,6 +435,7 @@ function migrateState(){
   }
   if(state.billingStartMonth===undefined) state.billingStartMonth = '';
   if(state.billingModeIgnoreStart===undefined) state.billingModeIgnoreStart = false;
+  (state.units||[]).forEach(u=>{ if(!Array.isArray(u.notes)) u.notes = []; });
 }
 async function saveState(){
   await storageSet(STORE_KEY, JSON.stringify(state));
@@ -970,11 +971,54 @@ function openUnitModal(id){
       <div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0;"><span>مستحقات الأشهر المنقضية:</span><b>${fmt(u.duesThisYear)} ر.س</b></div>
       <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0 0 0;border-top:1px solid var(--border);margin-top:4px;"><span>إجمالي المستحقات:</span><b style="color:${u.totalDue<0?'var(--red)':'var(--green)'}">${fmt(u.totalDue)} ر.س</b></div>
     </div>` : `<div class="field" style="font-size:12px;color:var(--text-dim);">بعد الحفظ، ستُحسب مستحقات الشقة تلقائيًا حسب سجل الدفعات الشهرية.</div>`}
+    ${u ? buildUnitNotesHTML(u) : ''}
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
       <button class="btn" onclick="saveUnit('${id||''}')">حفظ</button>
     </div>
   `);
+}
+function buildUnitNotesHTML(u){
+  const notes = u.notes||[];
+  const rows = notes.length
+    ? [...notes].reverse().map((n,revIdx)=>{
+        const i = notes.length-1-revIdx;
+        return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
+          <div style="min-width:0;">
+            <div style="font-size:11px;color:var(--text-dim);">${esc(n.date)}</div>
+            <div style="font-size:13px;line-height:1.6;">${esc(n.text)}</div>
+          </div>
+          <button class="icon-btn" style="flex-shrink:0;" onclick="deleteUnitNote('${u.id}','${i}')">حذف</button>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:12.5px;color:var(--text-dim);padding:6px 0;">لا توجد ملاحظات متابعة بعد.</div>';
+  return `
+    <div class="field" style="margin-top:2px;">
+      <label>سجل المتابعة (تواصل / مطالبة)</label>
+      <div style="max-height:160px;overflow-y:auto;background:var(--bg);border-radius:10px;padding:4px 12px;">${rows}</div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input id="f-newnote" placeholder="مثال: تم الاتصال، وعد بالسداد نهاية الشهر" style="flex:1;">
+        <button class="btn-ghost btn-sm" onclick="addUnitNote('${u.id}')">إضافة</button>
+      </div>
+    </div>`;
+}
+async function addUnitNote(unitId){
+  const input = document.getElementById('f-newnote');
+  const text = input.value.trim();
+  if(!text) return;
+  const u = state.units.find(x=>x.id===unitId);
+  if(!u) return;
+  if(!Array.isArray(u.notes)) u.notes = [];
+  u.notes.push({date:new Date().toLocaleDateString('ar-SA'), text});
+  await saveState();
+  openUnitModal(unitId);
+}
+async function deleteUnitNote(unitId, idx){
+  const u = state.units.find(x=>x.id===unitId);
+  if(!u || !Array.isArray(u.notes)) return;
+  u.notes.splice(Number(idx),1);
+  await saveState();
+  openUnitModal(unitId);
 }
 async function saveUnit(id){
   const arrears = Number(document.getElementById('f-arrears').value)||0;
@@ -992,7 +1036,7 @@ async function saveUnit(id){
     Object.assign(unit, data);
   } else {
     const newId = 'u'+(state.nextIds.unit++);
-    unit = {id:newId, ...data, collected:0, duesThisYear:0, totalDue:0};
+    unit = {id:newId, ...data, collected:0, duesThisYear:0, totalDue:0, notes:[]};
     state.units.push(unit);
   }
   syncUnitFinancials(unit);
@@ -1327,13 +1371,16 @@ function renderPayments(main){
   if(defaulters.length===0){
     defRows = '<div class="empty">لا يوجد أعضاء متأخرون 🎉</div>';
   } else {
-    defRows = `<table><thead><tr><th>الشقة</th><th>العضو</th><th>الجوال</th><th>المتأخر</th></tr></thead><tbody>` +
-      defaulters.map(u=>`<tr>
+    defRows = `<table><thead><tr><th>الشقة</th><th>العضو</th><th>الجوال</th><th>المتأخر</th><th>آخر متابعة</th></tr></thead><tbody>` +
+      defaulters.map(u=>{
+        const lastNote = (u.notes&&u.notes.length) ? u.notes[u.notes.length-1] : null;
+        return `<tr>
         <td><b>${esc(u.number)}</b></td>
         <td>${esc(u.owner)}</td>
         <td dir="ltr" style="text-align:right;">${esc(u.phone||'—')}</td>
         <td><b style="color:var(--red);">${fmt(Math.abs(u.totalDue))} ر.س</b></td>
-      </tr>`).join('') + `</tbody></table>`;
+        <td style="font-size:12px;color:var(--text-dim);">${lastNote?esc(lastNote.date)+' — '+esc(lastNote.text):'—'} <button class="icon-btn" style="margin-inline-start:4px;" onclick="openUnitModal('${u.id}')">✎</button></td>
+      </tr>`;}).join('') + `</tbody></table>`;
   }
   defPanel.innerHTML = `<div class="panel-title">الأعضاء المتأخرون عن السداد (${defaulters.length} من ${state.units.length}) — إجمالي ${fmt(totalOwed)} ر.س</div>${defRows}`;
   main.appendChild(defPanel);
