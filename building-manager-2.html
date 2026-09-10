@@ -1647,9 +1647,9 @@ function printDefaultersReport(opts){
       .chart-legend{ display:flex; gap:16px; justify-content:center; font-size:10.5px; color:#6b7684; margin-top:4px; }
       .chart-legend span{ display:inline-flex; align-items:center; gap:5px; }
       .chart-legend i{ width:9px; height:9px; border-radius:3px; display:inline-block; }
-      .stmt-stamp-wrap{ margin-top:6px; }
-      .stmt-stamp{ width:64px; }
-      .stmt-footer{ margin-top:6px; font-size:10px; }
+      .stmt-stamp-wrap{ margin-top:8px; text-align:left; float:left; }
+      .stmt-stamp{ width:90px; }
+      .stmt-footer{ margin-top:8px; font-size:10px; text-align:right; overflow:hidden; }
     </style></head>
     <body>${buildDefaultersReportHTML(opts)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
