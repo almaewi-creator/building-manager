@@ -811,6 +811,8 @@ function renderDashboard(main){
   const settled = state.units.filter(u=>Number(u.totalDue)>=0).length;
   const owing = state.units.length - settled;
   const totalArrears = state.units.reduce((s,u)=>s+Math.min(0,Number(u.totalDue)),0);
+  const totalArrearsPrevious = state.units.reduce((s,u)=>s+Math.min(0,Number(u.arrearsPrevious||0)),0);
+  const totalArrearsCurrent = state.units.reduce((s,u)=>s+Math.min(0,Number(u.duesThisYear||0)),0);
   const activeMnt = state.maintenance.filter(m=>m.status!=='مكتملة').length;
   const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
@@ -863,7 +865,14 @@ function renderDashboard(main){
   stats2.innerHTML = `
     <div class="stat-card tint-blue"><div class="lbl">إجمالي المحصّل من الاشتراكات</div><div class="num">${fmt(collected)} ر.س</div></div>
     <div class="stat-card tint-blue"><div class="lbl">إجمالي المحصّل من إيرادات الغرف</div><div class="num">${fmt(roomsCollected)} ر.س</div></div>
-    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">إجمالي المستحقات المتأخرة</div><div class="num">${fmt(Math.abs(totalArrears))} ر.س</div></div>
+    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;">
+      <div class="lbl">إجمالي المستحقات المتأخرة</div>
+      <div class="num">${fmt(Math.abs(totalArrears))} ر.س</div>
+      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
+        <span class="badge gray">سابقة: ${fmt(Math.abs(totalArrearsPrevious))}</span>
+        <span class="badge red">حالية: ${fmt(Math.abs(totalArrearsCurrent))}</span>
+      </div>
+    </div>
     <div class="stat-card ${accountBalance>=0?'tint-green':''}" style="${accountBalance<0?'background:var(--red-tint);border-color:#f3d3d0;':''}"><div class="lbl">رصيد الحساب الحالي (الباقي فعليًا)</div><div class="num">${fmt(accountBalance)} ر.س</div></div>
   `;
   main.appendChild(stats2);
