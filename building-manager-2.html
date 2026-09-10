@@ -1163,16 +1163,16 @@ function buildOwnerStatementHTML(owner){
     </table>
 
     <div class="stmt-section-title">بيانات الشقق والمستحقات</div>
-    <table class="stmt-table">
+    <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>الشقة</th><th>الاشتراك الشهري</th><th>إجمالي المحصّل</th><th>مستحقات سابقة</th><th>مستحقات السنة الحالية</th><th>إجمالي المستحقات</th></tr></thead>
       <tbody>${unitsRows || '<tr><td colspan="6">لا توجد شقق</td></tr>'}</tbody>
-    </table>
+    </table></div>
 
     <div class="stmt-section-title">سجل الدفعات الشهرية</div>
-    <table class="stmt-table">
+    <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>الشقة</th><th>الشهر</th><th>المبلغ</th><th>الحالة</th></tr></thead>
       <tbody>${paymentsRows || '<tr><td colspan="4">لا توجد دفعات مسجلة</td></tr>'}</tbody>
-    </table>
+    </table></div>
 
     <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
     <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
@@ -1197,6 +1197,11 @@ const STMT_STYLE = `
   table.stmt-table{width:100%;border-collapse:collapse;font-size:12.5px;}
   table.stmt-table th{background:#f6f4f0;text-align:right;padding:7px 8px;border:1px solid #e8e2d7;font-weight:700;}
   table.stmt-table td{padding:7px 8px;border:1px solid #e8e2d7;}
+  .stmt-table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:4px;}
+  @media (max-width:700px){
+    table.stmt-table{min-width:640px;}
+    table.stmt-table th, table.stmt-table td{white-space:nowrap;}
+  }
   .stmt-footer{margin-top:20px;font-size:11px;color:#9a958c;text-align:center;}
   .stmt-stamp-wrap{text-align:center;margin-top:14px;}
   .stmt-stamp{width:90px;height:auto;opacity:.92;}
@@ -1520,10 +1525,10 @@ function buildPaymentsReportHTML(){
     <table class="stmt-info">
       <tr><td><b>إجمالي المطلوب:</b> ${fmt(totalDue)} ر.س</td><td><b>إجمالي المحصّل:</b> ${fmt(totalPaid)} ر.س</td></tr>
     </table>
-    <table class="stmt-table">
+    <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>الشقة</th><th>العضو</th><th>المبلغ</th><th>الحالة</th></tr></thead>
       <tbody>${tableRows || '<tr><td colspan="4">لا توجد شقق</td></tr>'}</tbody>
-    </table>
+    </table></div>
     <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
     <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
   </div>`;
@@ -1594,10 +1599,10 @@ function buildDefaultersReportHTML(opts){
     <table class="stmt-info">
       <tr><td><b>عدد المتأخرين:</b> ${rowsData.length} من ${state.units.length} شقة</td><td><b>إجمالي المتأخرات:</b> ${fmt(totalOwed)} ر.س</td></tr>
     </table>
-    <table class="stmt-table defaulters-detail-table">
+    <div class="stmt-table-scroll"><table class="stmt-table defaulters-detail-table">
       <thead><tr><th>الشقة</th>${showName?'<th>العضو</th>':''}${showPhone?'<th>الجوال</th>':''}${monthHeaders}<th>مستحقات سابقة</th><th>الإجمالي</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="${fixedColCount+2+months.length}">لا يوجد أعضاء متأخرون عن هذي الفترة 🎉</td></tr>`}</tbody>
-    </table>
+    </table></div>
     ${rowsData.length>0 ? `
     <div class="stmt-chart-wrap stmt-chart-compact">
       <div class="stmt-section-title" style="text-align:center;">الرسم البياني للمتأخرات حسب الشقة</div>
@@ -1867,10 +1872,10 @@ function buildDriverRoomsReportHTML(){
     <table class="stmt-info">
       <tr><td><b>إجمالي الإيجار الشهري:</b> ${fmt(totalMonthly)} ر.س</td><td><b>إجمالي المحصّل:</b> ${fmt(totalCollected)} ر.س</td><td><b>إجمالي المتأخر:</b> ${fmt(totalRemaining)} ر.س</td></tr>
     </table>
-    <table class="stmt-table">
+    <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>الغرفة</th><th>اسم المستأجر</th><th>بداية الإيجار</th><th>الأجر الشهري</th><th>أشهر مستحقة</th><th>الإجمالي المحصّل</th><th>المتبقي</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
     <div class="stmt-footer">هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
   </div>`;
@@ -1968,10 +1973,10 @@ function buildFinanceReportHTML(){
         <td><b>الصافي:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${fmt(income-expense)} ر.س</span></td>
       </tr>
     </table>
-    <table class="stmt-table">
+    <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="6">لا توجد حركات</td></tr>'}</tbody>
-    </table>
+    </table></div>
     <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
     <div class="stmt-footer">هذا التقرير صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
   </div>`;
