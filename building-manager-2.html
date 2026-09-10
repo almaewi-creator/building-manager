@@ -1642,7 +1642,7 @@ function printDefaultersReport(opts){
       .stmt-chart-wrap{ margin:6px 0 8px 0; }
       .stmt-chart-wrap svg{ display:block; width:100%; height:auto; max-width:640px; margin:0 auto; }
       @media print{ .stmt-chart-wrap{ page-break-inside:avoid; } }
-      .stmt-chart-compact{ max-width:280px; margin:8px 0 0 0; text-align:left; }
+      .stmt-chart-compact{ max-width:280px; margin:8px 0 0 0; text-align:left; float:left; }
       .stmt-chart-wrap .stmt-section-title{ text-align:left !important; }
       .stmt-chart-compact svg{ max-width:260px; max-height:130px; }
       .chart-legend{ display:flex; gap:16px; justify-content:flex-start; font-size:10.5px; color:#6b7684; margin-top:4px; }
@@ -1650,7 +1650,7 @@ function printDefaultersReport(opts){
       .chart-legend i{ width:9px; height:9px; border-radius:3px; display:inline-block; }
       .stmt-stamp-wrap{ margin-top:8px; text-align:center; }
       .stmt-stamp{ width:90px; }
-      .stmt-footer{ margin-top:8px; font-size:10px; text-align:center; }
+      .stmt-footer{ margin-top:8px; font-size:10px; text-align:center; clear:both; }
     </style></head>
     <body>${buildDefaultersReportHTML(opts)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
