@@ -811,6 +811,7 @@ function renderDashboard(main){
   const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const collected = state.units.reduce((s,u)=>s+Number(u.collected||0),0);
+  const roomsCollected = state.driverRooms.reduce((s,r)=>s+Number(r.collected||0),0);
 
   const alertDebtors = [...state.units].filter(u=>Number(u.totalDue)<0);
   const alertUrgentMnt = state.maintenance.filter(m=>m.priority==='عاجلة' && m.status!=='مكتملة');
@@ -849,9 +850,9 @@ function renderDashboard(main){
 
   const stats2 = document.createElement('div');
   stats2.className='stats-row';
-  stats2.style.gridTemplateColumns='repeat(3,1fr)';
   stats2.innerHTML = `
     <div class="stat-card tint-blue"><div class="lbl">إجمالي المحصّل من الاشتراكات</div><div class="num">${fmt(collected)} ر.س</div></div>
+    <div class="stat-card tint-blue"><div class="lbl">إجمالي المحصّل من إيرادات الغرف</div><div class="num">${fmt(roomsCollected)} ر.س</div></div>
     <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">إجمالي المستحقات المتأخرة</div><div class="num">${fmt(Math.abs(totalArrears))} ر.س</div></div>
     <div class="stat-card tint-green"><div class="lbl">صافي الإيرادات والمصروفات</div><div class="num">${fmt(income-expense)} ر.س</div></div>
   `;
