@@ -433,6 +433,7 @@ function migrateState(){
   } else {
     state.driverRooms.forEach(r=>{ if(r.startMonth===undefined) r.startMonth=''; });
   }
+  if(state.billingStartMonth===undefined) state.billingStartMonth = '';
 }
 async function saveState(){
   await storageSet(STORE_KEY, JSON.stringify(state));
@@ -553,7 +554,8 @@ const NAV = [
   {id:'driverRooms', label:'غرف السواقين', icon:'🚗'},
   {id:'finance', label:'الإيرادات والمصروفات', icon:'📊'},
   {id:'equipment', label:'معدات المبنى', icon:'⚙'},
-  {id:'maintenance', label:'الصيانة', icon:'🛠'}
+  {id:'maintenance', label:'الصيانة', icon:'🛠'},
+  {id:'settings', label:'الإعدادات', icon:'⚙️'}
 ];
 let currentView = 'dashboard';
 
@@ -618,6 +620,7 @@ function render(){
   else if(currentView==='finance') renderFinance(main);
   else if(currentView==='equipment') renderEquipment(main);
   else if(currentView==='maintenance') renderMaintenance(main);
+  else if(currentView==='settings') renderSettings(main);
 }
 async function retryCloudSync(){
   await saveState();
@@ -1183,6 +1186,7 @@ function lastCompletedMonthKey(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
 }
 function firstBillingMonthKey(){
+  if(state.billingStartMonth) return state.billingStartMonth;
   let min = null;
   Object.keys(state.payments).forEach(k=>{
     const month = k.split('|')[1];
@@ -1227,13 +1231,19 @@ function computeUnitPriorArrears(unit, fromKey){
   if(fromKey <= start) return Number(unit.arrearsPrevious||0);
   return Number(unit.arrearsPrevious||0) + computeUnitNetForRange(unit, start, monthBefore(fromKey));
 }
-/* Every riyal a unit has actually been marked as paid, across all recorded months —
-   this always matches the payments checkboxes, so it can never drift out of sync. */
+/* Every riyal a unit has actually been marked as paid, from the building's
+   billing start month onward — this respects state.billingStartMonth if set,
+   so months before you took over management don't count, but their payment
+   records stay untouched and visible in the monthly payments page. */
 function computeUnitCollected(unit){
   let total = 0;
   const prefix = unit.id+'|';
+  const start = firstBillingMonthKey();
   Object.keys(state.payments).forEach(k=>{
-    if(k.startsWith(prefix) && state.payments[k].paid) total += Number(state.payments[k].amount)||0;
+    if(!k.startsWith(prefix)) return;
+    const month = k.split('|')[1];
+    if(month < start) return;
+    if(state.payments[k].paid) total += Number(state.payments[k].amount)||0;
   });
   return total;
 }
@@ -1584,6 +1594,46 @@ function computeRoomDue(room){
   const remaining = totalDue - Number(room.collected||0);
   return { monthsDue, totalDue, remaining };
 }
+/* ---------------- settings ---------------- */
+function renderSettings(main){
+  topbar(main, state.buildingName, 'الإعدادات', 'إعدادات عامة للعمارة والنظام.', '');
+
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  const currentStart = state.billingStartMonth || '';
+  const autoDetected = (()=>{
+    let min = null;
+    Object.keys(state.payments).forEach(k=>{ const m=k.split('|')[1]; if(!min||m<min) min=m; });
+    return min || '—';
+  })();
+  panel.innerHTML = `
+    <div class="panel-title">بيانات العمارة</div>
+    <div class="field"><label>اسم العمارة</label><input id="f-set-name" value="${esc(state.buildingName)}"></div>
+    <div class="field">
+      <label>شهر بداية إدارتك للعمارة</label>
+      <input id="f-set-billstart" type="month" value="${currentStart}">
+    </div>
+    <p style="font-size:11.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">
+      حدّد الشهر اللي استلمت فيه إدارة العمارة فعليًا. من هذا الشهر فأكثر، النظام بيحسب المستحقات والمحصّل لكل الشقق تلقائيًا.
+      أي دفعات مسجّلة قبل هذا الشهر (زي بيانات تجريبية أو سجلات قديمة) <b>تبقى محفوظة وما تنحذف</b>، بس ما تدخل بحساب المستحقات — تقدر تشوفها وتعدّلها في أي وقت من صفحة "الدفعات الشهرية".<br>
+      لو تركت هذا الحقل فاضي، النظام يكتشف أقدم شهر تلقائيًا (حاليًا: <b>${autoDetected==='—'?autoDetected:monthLabel(autoDetected)}</b>).
+    </p>
+    <div class="modal-actions" style="margin-top:16px;max-width:320px;">
+      <button class="btn" onclick="saveSettings()">حفظ الإعدادات</button>
+    </div>
+  `;
+  main.appendChild(panel);
+}
+async function saveSettings(){
+  const name = document.getElementById('f-set-name').value.trim();
+  const billStart = document.getElementById('f-set-billstart').value;
+  if(name) state.buildingName = name;
+  state.billingStartMonth = billStart || '';
+  await saveState();
+  render();
+  alert('تم حفظ الإعدادات ✅');
+}
+
 function renderDriverRooms(main){
   topbar(main, state.buildingName, 'غرف السواقين', 'إيجار غرف السواقين الخمسة — منفصل عن اشتراكات الشقق، ويُضاف تلقائيًا لإجمالي الإيرادات.',
     '<button class="btn-ghost btn-sm" onclick="printDriverRoomsReport()">🖨 طباعة كشف الغرف</button>');
