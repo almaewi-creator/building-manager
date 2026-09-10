@@ -434,6 +434,7 @@ function migrateState(){
     state.driverRooms.forEach(r=>{ if(r.startMonth===undefined) r.startMonth=''; });
   }
   if(state.billingStartMonth===undefined) state.billingStartMonth = '';
+  if(state.billingModeIgnoreStart===undefined) state.billingModeIgnoreStart = false;
 }
 async function saveState(){
   await storageSet(STORE_KEY, JSON.stringify(state));
@@ -1187,7 +1188,7 @@ function lastCompletedMonthKey(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
 }
 function firstBillingMonthKey(){
-  if(state.billingStartMonth) return state.billingStartMonth;
+  if(state.billingStartMonth && !state.billingModeIgnoreStart) return state.billingStartMonth;
   let min = null;
   Object.keys(state.payments).forEach(k=>{
     const month = k.split('|')[1];
@@ -1601,35 +1602,55 @@ function renderSettings(main){
 
   const panel = document.createElement('div');
   panel.className = 'panel';
+  panel.innerHTML = `
+    <div class="panel-title">بيانات العمارة</div>
+    <div class="field"><label>اسم العمارة</label><input id="f-set-name" value="${esc(state.buildingName)}"></div>
+    <div class="modal-actions" style="margin-top:16px;max-width:220px;">
+      <button class="btn" onclick="saveSettings()">حفظ</button>
+    </div>
+  `;
+  main.appendChild(panel);
+
+  const panel2 = document.createElement('div');
+  panel2.className = 'panel';
   const currentStart = state.billingStartMonth || '';
   const autoDetected = (()=>{
     let min = null;
     Object.keys(state.payments).forEach(k=>{ const m=k.split('|')[1]; if(!min||m<min) min=m; });
     return min || '—';
   })();
-  panel.innerHTML = `
-    <div class="panel-title">بيانات العمارة</div>
-    <div class="field"><label>اسم العمارة</label><input id="f-set-name" value="${esc(state.buildingName)}"></div>
-    <div class="field">
+  const ignoreStart = !!state.billingModeIgnoreStart;
+  panel2.innerHTML = `
+    <div class="panel-title">فترة حساب المستحقات</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button class="btn-ghost" id="btn-mode-mgmt" onclick="setBillingMode(false)" style="flex:1;justify-content:center;${!ignoreStart?'background:var(--teal-dark);color:#fff;border-color:var(--teal-dark);':''}">من بداية إدارتي</button>
+      <button class="btn-ghost" id="btn-mode-full" onclick="setBillingMode(true)" style="flex:1;justify-content:center;${ignoreStart?'background:var(--teal-dark);color:#fff;border-color:var(--teal-dark);':''}">من كل السجلات (منذ البداية)</button>
+    </div>
+    <div class="field" style="${ignoreStart?'opacity:.5;pointer-events:none;':''}">
       <label>شهر بداية إدارتك للعمارة</label>
       <input id="f-set-billstart" type="month" value="${currentStart}">
     </div>
     <p style="font-size:11.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">
-      حدّد الشهر اللي استلمت فيه إدارة العمارة فعليًا. من هذا الشهر فأكثر، النظام بيحسب المستحقات والمحصّل لكل الشقق تلقائيًا.
-      أي دفعات مسجّلة قبل هذا الشهر (زي بيانات تجريبية أو سجلات قديمة) <b>تبقى محفوظة وما تنحذف</b>، بس ما تدخل بحساب المستحقات — تقدر تشوفها وتعدّلها في أي وقت من صفحة "الدفعات الشهرية".<br>
-      لو تركت هذا الحقل فاضي، النظام يكتشف أقدم شهر تلقائيًا (حاليًا: <b>${autoDetected==='—'?autoDetected:monthLabel(autoDetected)}</b>).
+      <b>"من بداية إدارتي":</b> يحسب المستحقات والمحصّل من الشهر اللي تحدده فقط.<br>
+      <b>"من كل السجلات":</b> يتجاهل مؤقتًا شهر البداية ويحسب من أقدم سجل موجود (حاليًا: <b>${autoDetected==='—'?autoDetected:monthLabel(autoDetected)}</b>) — يعطيك صورة كاملة للتاريخ كامل.<br>
+      تقدر تبدّل بين الاثنين بضغطة وحدة في أي وقت بدون ما تفقد شهر البداية المحفوظ. أي دفعات مسجّلة بأي فترة <b>تبقى محفوظة دايمًا</b> وما تنحذف.
     </p>
-    <div class="modal-actions" style="margin-top:16px;max-width:320px;">
+    <div class="modal-actions" style="margin-top:10px;max-width:220px;">
       <button class="btn" onclick="saveSettings()">حفظ الإعدادات</button>
     </div>
   `;
-  main.appendChild(panel);
+  main.appendChild(panel2);
+}
+async function setBillingMode(ignoreStart){
+  state.billingModeIgnoreStart = ignoreStart;
+  await saveState();
+  render();
 }
 async function saveSettings(){
   const name = document.getElementById('f-set-name').value.trim();
-  const billStart = document.getElementById('f-set-billstart').value;
+  const billStartInput = document.getElementById('f-set-billstart');
   if(name) state.buildingName = name;
-  state.billingStartMonth = billStart || '';
+  if(billStartInput) state.billingStartMonth = billStartInput.value || '';
   await saveState();
   render();
   alert('تم حفظ الإعدادات ✅');
