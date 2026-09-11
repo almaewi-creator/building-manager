@@ -417,14 +417,35 @@ async function storageRemove(key){
 }
 
 async function loadState(){
-  const raw = await storageGet(STORE_KEY);
-  if(raw){
+  // 1) Try the cloud first - this is the shared source of truth.
+  let cloudRaw = null;
+  try{ cloudRaw = await cloudGet(STORE_KEY); }catch(e){}
+  if(cloudRaw){
     try{
-      state = JSON.parse(raw);
+      state = JSON.parse(cloudRaw);
       migrateState();
+      // mirror to local caches for offline fallback, but do NOT write back to cloud
+      if(hasClaudeStorage()){ try{ await window.storage.set(STORE_KEY, cloudRaw, false); }catch(e){} }
+      if(hasLocalStorage){ try{ localStorage.setItem(STORE_KEY, cloudRaw); }catch(e){} }
       return;
     }catch(e){}
   }
+  // 2) Cloud had nothing (or failed) - fall back to whatever is on THIS device.
+  let localRaw = null;
+  if(hasLocalStorage){ try{ localRaw = localStorage.getItem(STORE_KEY); }catch(e){} }
+  if(!localRaw && hasClaudeStorage()){
+    try{ const r = await window.storage.get(STORE_KEY, false); localRaw = r && r.value ? r.value : null; }catch(e){}
+  }
+  if(localRaw){
+    try{
+      state = JSON.parse(localRaw);
+      migrateState();
+      // One-time migration: cloud was empty but this device has real data - push it up.
+      try{ await cloudSet(STORE_KEY, JSON.stringify(state)); }catch(e){}
+      return;
+    }catch(e){}
+  }
+  // 3) Truly nothing anywhere - initialize fresh defaults.
   state = defaultState();
   await saveState();
 }
@@ -509,6 +530,7 @@ function showAuthScreen(mode, session, errorMsg){
         <div class="field"><label>كلمة المرور</label><input id="au-pass" type="password" autocomplete="current-password"></div>
         <button class="btn" style="width:100%;justify-content:center;" onclick="submitLogin()">دخول</button>
         <div class="auth-links"><button onclick="showAuthScreen('reset', null, '')">نسيت كلمة المرور؟</button></div>
+        <div class="auth-links"><button onclick="showDataRecovery()" style="color:#71807a;font-size:11.5px;">🔧 تشخيص/استرجاع نسخة محلية من البيانات</button></div>
       </div>`;
   }
   const first = el.querySelector('#au-email');
@@ -538,6 +560,55 @@ async function submitReset(){
     return;
   }
   showAuthScreen('login', null, 'تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني ✅');
+}
+async function showDataRecovery(){
+  let localRaw = null, claudeRaw = null, cloudRaw = null, cloudErr = '';
+  try{ localRaw = localStorage.getItem(STORE_KEY); }catch(e){}
+  if(hasClaudeStorage()){
+    try{ const r = await window.storage.get(STORE_KEY, false); claudeRaw = r && r.value ? r.value : null; }catch(e){}
+  }
+  try{ cloudRaw = await cloudGet(STORE_KEY); if(!cloudRaw) cloudErr = ' (فاضي أو تعذر الوصول)'; }catch(e){ cloudErr = ' (خطأ اتصال)'; }
+
+  function summarize(label, raw){
+    if(!raw) return `<div class="field"><label>${label}: <b style="color:var(--red)">لا توجد بيانات</b></label></div>`;
+    let txCount = '?', txSum = '?';
+    try{
+      const parsed = JSON.parse(raw);
+      const txs = parsed.transactions || [];
+      txCount = txs.length;
+      txSum = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount||0),0);
+    }catch(e){}
+    return `
+      <div class="field">
+        <label>${label}: <b style="color:var(--green)">توجد بيانات</b> — عدد الحركات: ${txCount}، إجمالي المصروفات: ${txSum} ر.س</label>
+        <textarea readonly style="height:90px;font-size:10px;direction:ltr;" onclick="this.select()">${esc(raw)}</textarea>
+        <button class="btn-ghost btn-sm" style="margin-top:6px;" onclick="copyRecoveryText(this)" data-payload="${encodeURIComponent(raw)}">📋 نسخ هذا النص</button>
+      </div>`;
+  }
+
+  showModal(`
+    <h3>تشخيص واسترجاع البيانات المحلية</h3>
+    <p style="font-size:12.5px;color:var(--text-dim);">هذي أداة فحص فقط — ما تعدّل ولا تحذف أي شي. اضغط "نسخ" وأرسل النص المنسوخ.</p>
+    ${summarize('نسخة هذا المتصفح (localStorage)', localRaw)}
+    ${summarize('نسخة تخزين Claude (إن وجدت)', claudeRaw)}
+    ${summarize('النسخة السحابية الحالية' + cloudErr, cloudRaw)}
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeModal()">إغلاق</button></div>
+  `);
+}
+function copyRecoveryText(btn){
+  const raw = decodeURIComponent(btn.getAttribute('data-payload'));
+  const ta = document.createElement('textarea');
+  ta.value = raw; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try{
+    document.execCommand('copy');
+    btn.textContent = '✅ تم النسخ';
+  }catch(e){
+    if(navigator.clipboard){ navigator.clipboard.writeText(raw).then(()=>{ btn.textContent='✅ تم النسخ'; }).catch(()=>{ btn.textContent='تعذر النسخ - انسخ من المربع أعلاه يدويًا'; }); }
+    else { btn.textContent = 'تعذر النسخ - انسخ من المربع أعلاه يدويًا'; }
+  }
+  document.body.removeChild(ta);
+  setTimeout(()=>{ btn.textContent='📋 نسخ هذا النص'; }, 3000);
 }
 async function enterApp(){
   document.getElementById('authScreen').style.display = 'none';
@@ -794,23 +865,6 @@ function buildArrearsBarChartSVG(defaulters, opts){
     bars += `<text x="${(x+colW/2).toFixed(1)}" y="${(padT+chartH+(compact?15:18)).toFixed(1)}" text-anchor="middle" font-size="${lblFont}" font-weight="700" fill="#26282c">${esc(unitNum)}</text>`;
   });
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${Math.min(h,compact?140:260)}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">${gridLines}${gridLabels}${bars}</svg>`;
-}
-function buildArrearsHBarListHTML(defaulters, opts){
-  if(defaulters.length===0) return '<div class="chart-empty">لا يوجد أعضاء متأخرون لعرضهم 🎉</div>';
-  const compact = opts && opts.compact;
-  const maxVal = Math.max(1, ...defaulters.map(u=>Math.abs(u.totalDue)));
-  const rows = defaulters.map(u=>{
-    const val = Math.abs(u.totalDue);
-    const pct = Math.max(4, Math.round((val/maxVal)*100));
-    const color = arrearsSeverityColor(val);
-    const unitNum = (String(u.number).match(/\d+/)||[u.number])[0];
-    return `<div class="hbar-row${compact?' hbar-row-compact':''}">
-      <div class="hbar-label">${esc(unitNum)}</div>
-      <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${color};"></div></div>
-      <div class="hbar-value">${fmt(val)}</div>
-    </div>`;
-  }).join('');
-  return `<div class="hbar-list${compact?' hbar-list-compact':''}">${rows}</div>`;
 }
 function buildArrearsSeverityLegendHTML(){
   return `<div class="chart-legend" style="margin-top:4px;">
@@ -1210,7 +1264,7 @@ function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 const STMT_STYLE = `
-  *{box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:exact;}
+  *{box-sizing:border-box;}
   body{font-family:'Tajawal', system-ui, sans-serif; direction:rtl; color:#26282c; margin:0; padding:24px; background:#fff;}
   .stmt-page{max-width:800px;margin:0 auto 40px auto;page-break-after:always;}
   .stmt-page:last-child{page-break-after:auto;}
@@ -1633,8 +1687,8 @@ function buildDefaultersReportHTML(opts){
     </table></div>
     ${rowsData.length>0 ? `
     <div class="stmt-chart-wrap stmt-chart-compact">
-      <div class="stmt-section-title" style="text-align:center;">المتأخرات حسب الشقة</div>
-      ${buildArrearsHBarListHTML(chartData, {compact:true})}
+      <div class="stmt-section-title" style="text-align:center;">الرسم البياني للمتأخرات حسب الشقة</div>
+      ${buildArrearsBarChartSVG(chartData, {compact:true})}
       ${buildArrearsSeverityLegendHTML()}
     </div>
     ` : ''}
@@ -1649,28 +1703,17 @@ function printDefaultersReport(opts){
     <title>كشف المتأخرين - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <style>${STMT_STYLE}
-      @page{ size: landscape; margin: 10mm 12mm; }
-      body{ padding:10px; }
-      .stmt-page{ margin-bottom:0; }
-      .stmt-header{ margin-bottom:10px; padding-bottom:8px; }
-      table.stmt-info{ margin-bottom:10px; }
+      @page{ size: landscape; }
       .stmt-page-wide{ max-width:100%; }
-      .defaulters-detail-table th, .defaulters-detail-table td{ padding:4px 6px; font-size:10.5px; white-space:nowrap; }
-      .stmt-chart-wrap{ margin:6px 0 8px 0; }
+      .defaulters-detail-table th, .defaulters-detail-table td{ padding:5px 6px; font-size:10.5px; white-space:nowrap; }
+      .stmt-chart-wrap{ margin:8px 0 18px 0; }
+      .stmt-chart-wrap svg{ display:block; width:100%; height:auto; max-width:640px; margin:0 auto; }
       @media print{ .stmt-chart-wrap{ page-break-inside:avoid; } }
-      .stmt-chart-compact{ max-width:340px; margin:8px auto 0 auto; }
-      .hbar-list{ display:flex; flex-direction:column; gap:4px; margin-top:5px; }
-      .hbar-row{ display:flex; align-items:center; gap:6px; }
-      .hbar-label{ width:26px; flex-shrink:0; font-size:9.5px; font-weight:700; text-align:center; }
-      .hbar-track{ flex:1; height:8px; background:#f0eee9; border:1px solid #e2ddd2; border-radius:5px; overflow:hidden; }
-      .hbar-fill{ height:100%; border-radius:5px; }
-      .hbar-value{ width:46px; flex-shrink:0; font-size:9.5px; font-weight:700; text-align:left; }
-      .chart-legend{ display:flex; gap:16px; justify-content:center; font-size:10.5px; color:#6b7684; margin-top:6px; }
+      .stmt-chart-compact{ max-width:420px; margin:18px auto 0 auto; text-align:center; }
+      .stmt-chart-compact svg{ max-width:380px; }
+      .chart-legend{ display:flex; gap:16px; justify-content:center; font-size:11.5px; color:#6b7684; margin-top:6px; }
       .chart-legend span{ display:inline-flex; align-items:center; gap:5px; }
       .chart-legend i{ width:9px; height:9px; border-radius:3px; display:inline-block; }
-      .stmt-stamp-wrap{ margin-top:8px; text-align:center; }
-      .stmt-stamp{ width:90px; }
-      .stmt-footer{ margin-top:6px; font-size:10px; text-align:center; }
     </style></head>
     <body>${buildDefaultersReportHTML(opts)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
@@ -2482,8 +2525,13 @@ document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.
 
 /* ---------------- boot ---------------- */
 (async function boot(){
-  await loadState(); // load building data in the background either way
-  await saveState(); // push straight to the cloud so existing local data migrates immediately
+  await loadState(); // load building data (cloud first, then local fallback, then defaults)
+  // NOTE: we intentionally do NOT auto-save back to the cloud on every boot anymore.
+  // Auto-saving here used to silently overwrite the shared cloud copy with whatever
+  // this device happened to load (including an empty/default state on a fresh
+  // device or after a failed cloud read), which is how data got wiped before.
+  // loadState() below only writes to the cloud in the one-time migration case
+  // (cloud empty but this device has real local data).
   const session = await supaGetSession();
   if(session){
     await enterApp();
