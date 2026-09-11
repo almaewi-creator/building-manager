@@ -340,14 +340,14 @@ function getSupabaseClient(){
 let lastCloudSyncOk = true;
 async function cloudGet(key){
   const client = getSupabaseClient();
-  if(!client){ lastCloudSyncOk = false; return null; }
+  if(!client){ lastCloudSyncOk = false; return { ok:false, raw:null }; }
   try{
     const { data, error } = await client.from('app_state').select('data').eq('id', key).maybeSingle();
-    if(error){ console.error('Supabase get error', error); lastCloudSyncOk = false; return null; }
+    if(error){ console.error('Supabase get error', error); lastCloudSyncOk = false; return { ok:false, raw:null }; }
     lastCloudSyncOk = true;
-    if(data && data.data) return JSON.stringify(data.data);
-    return null;
-  }catch(e){ console.error('Supabase get exception', e); lastCloudSyncOk = false; return null; }
+    if(data && data.data) return { ok:true, raw: JSON.stringify(data.data) };
+    return { ok:true, raw:null }; // successful query, row genuinely doesn't exist
+  }catch(e){ console.error('Supabase get exception', e); lastCloudSyncOk = false; return { ok:false, raw:null }; }
 }
 async function cloudSet(key, value){
   const client = getSupabaseClient();
@@ -373,8 +373,8 @@ function isCloudBackedKey(key){
 }
 async function storageGet(key){
   if(isCloudBackedKey(key)){
-    const cloudVal = await cloudGet(key);
-    if(cloudVal) return cloudVal;
+    const cloudRes = await cloudGet(key);
+    if(cloudRes.raw) return cloudRes.raw;
   }
   if(hasClaudeStorage()){
     try{ const r = await window.storage.get(key, false); if(r && r.value) return r.value; }catch(e){}
@@ -418,15 +418,14 @@ async function storageRemove(key){
 
 async function loadState(){
   // 1) Try the cloud first - this is the shared source of truth.
-  let cloudRaw = null;
-  try{ cloudRaw = await cloudGet(STORE_KEY); }catch(e){}
-  if(cloudRaw){
+  const cloudRes = await cloudGet(STORE_KEY);
+  if(cloudRes.raw){
     try{
-      state = JSON.parse(cloudRaw);
+      state = JSON.parse(cloudRes.raw);
       migrateState();
       // mirror to local caches for offline fallback, but do NOT write back to cloud
-      if(hasClaudeStorage()){ try{ await window.storage.set(STORE_KEY, cloudRaw, false); }catch(e){} }
-      if(hasLocalStorage){ try{ localStorage.setItem(STORE_KEY, cloudRaw); }catch(e){} }
+      if(hasClaudeStorage()){ try{ await window.storage.set(STORE_KEY, cloudRes.raw, false); }catch(e){} }
+      if(hasLocalStorage){ try{ localStorage.setItem(STORE_KEY, cloudRes.raw); }catch(e){} }
       return;
     }catch(e){}
   }
@@ -440,14 +439,27 @@ async function loadState(){
     try{
       state = JSON.parse(localRaw);
       migrateState();
-      // One-time migration: cloud was empty but this device has real data - push it up.
-      try{ await cloudSet(STORE_KEY, JSON.stringify(state)); }catch(e){}
+      // Only push this device's local copy up to the cloud in the ONE safe case:
+      // the cloud query genuinely succeeded and confirmed there is no row yet
+      // (cloudRes.ok === true, cloudRes.raw === null). If the cloud call instead
+      // *failed* (network hiccup, RLS error, etc. -> cloudRes.ok === false), we must
+      // NEVER write here, because a transient failure is not proof the cloud is
+      // empty - writing in that case is exactly what silently destroyed real data
+      // before. In a failure case we just work from local data without touching the cloud.
+      if(cloudRes.ok === true && cloudRes.raw === null){
+        try{ await cloudSet(STORE_KEY, JSON.stringify(state)); }catch(e){}
+      }
       return;
     }catch(e){}
   }
   // 3) Truly nothing anywhere - initialize fresh defaults.
+  // Only safe to do this (and save it) if the cloud call actually succeeded and
+  // confirmed emptiness; if the cloud call failed, do NOT save a fresh default -
+  // just show it in-memory so nothing is overwritten once connectivity returns.
   state = defaultState();
-  await saveState();
+  if(cloudRes.ok === true && cloudRes.raw === null){
+    await saveState();
+  }
 }
 function migrateState(){
   if(!state.driverRooms){
@@ -567,7 +579,12 @@ async function showDataRecovery(){
   if(hasClaudeStorage()){
     try{ const r = await window.storage.get(STORE_KEY, false); claudeRaw = r && r.value ? r.value : null; }catch(e){}
   }
-  try{ cloudRaw = await cloudGet(STORE_KEY); if(!cloudRaw) cloudErr = ' (فاضي أو تعذر الوصول)'; }catch(e){ cloudErr = ' (خطأ اتصال)'; }
+  try{
+    const cloudRes = await cloudGet(STORE_KEY);
+    cloudRaw = cloudRes.raw;
+    if(!cloudRes.ok) cloudErr = ' (تعذّر الاتصال بالسحابة - هذا لا يعني أنها فاضية فعلاً)';
+    else if(!cloudRaw) cloudErr = ' (السحابة وصلت لكن فعلاً فاضية)';
+  }catch(e){ cloudErr = ' (خطأ اتصال)'; }
 
   function summarize(label, raw){
     if(!raw) return `<div class="field"><label>${label}: <b style="color:var(--red)">لا توجد بيانات</b></label></div>`;
