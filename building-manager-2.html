@@ -1942,6 +1942,8 @@ function openDriverRoomModal(id){
       <div class="field"><label>بداية الإيجار (الشهر)</label><input id="f-drstart" type="month" value="${r.startMonth||''}"></div>
     </div>
     <p style="font-size:11.5px;color:var(--text-dim);margin-top:-8px;">اترك اسم المستأجر فاضي إذا الغرفة غير مؤجّرة حاليًا.</p>
+    <div class="field"><label>الإجمالي المحصّل (ر.س) — تعديل يدوي لتصحيح الرقم</label><input id="f-drcollected" type="number" value="${r.collected||0}"></div>
+    <p style="font-size:11.5px;color:var(--text-dim);margin-top:-8px;">غيّر هذا الرقم مباشرة لو المبلغ المسجّل غلط — تقدر تزيده أو تنقصه.</p>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
       <button class="btn" onclick="saveDriverRoom('${id}')">حفظ</button>
@@ -1953,6 +1955,7 @@ async function saveDriverRoom(id){
   r.tenant = document.getElementById('f-drtenant').value.trim();
   r.monthlyRent = Number(document.getElementById('f-drrent').value)||0;
   r.startMonth = document.getElementById('f-drstart').value;
+  r.collected = Number(document.getElementById('f-drcollected').value)||0;
   await saveState(); closeModal(); render();
 }
 async function recordDriverRoomPayment(id){
