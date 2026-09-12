@@ -2088,10 +2088,12 @@ function renderFinance(main){
   main.appendChild(panel);
 }
 function buildFinanceReportHTML(){
-  const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-  const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const filtered = state.transactions.filter(t=>financeFilter==='all'||t.type===financeFilter);
+  const income = filtered.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const expense = filtered.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const scopeLabel = financeFilter==='income' ? ' (إيرادات فقط)' : financeFilter==='expense' ? ' (مصروفات فقط)' : '';
   const today = new Date().toLocaleDateString('ar-SA');
-  const rows = [...state.transactions].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
+  const rows = [...filtered].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
       <td>${esc(t.date)}</td>
       <td style="font-weight:700;color:${t.type==='income'?'#1f9d55':'#c0392b'}">${t.type==='income'?'إيراد':'مصروف'}</td>
       <td>${esc(t.category)}</td>
@@ -2105,15 +2107,15 @@ function buildFinanceReportHTML(){
       <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
       <div>
         <div class="stmt-building">${esc(state.buildingName)}</div>
-        <div class="stmt-title">تقرير الإيرادات والمصروفات</div>
+        <div class="stmt-title">تقرير الإيرادات والمصروفات${scopeLabel}</div>
       </div>
       <div class="stmt-date">تاريخ الطباعة: ${today}</div>
     </div>
     <table class="stmt-info">
       <tr>
-        <td><b>إجمالي الإيرادات:</b> ${fmt(income)} ر.س</td>
-        <td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>
-        <td><b>الصافي:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${fmt(income-expense)} ر.س</span></td>
+        ${financeFilter!=='expense' ? `<td><b>إجمالي الإيرادات:</b> ${fmt(income)} ر.س</td>` : ''}
+        ${financeFilter!=='income' ? `<td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>` : ''}
+        ${financeFilter==='all' ? `<td><b>الصافي:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${fmt(income-expense)} ر.س</span></td>` : ''}
       </tr>
     </table>
     <div class="stmt-table-scroll"><table class="stmt-table">
