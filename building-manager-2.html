@@ -2229,9 +2229,11 @@ async function saveTx(id){
     }
   }
 
-  await saveState(); closeModal(); render();
-}
-async function deleteTx(id){
+  await saveState();
+  if(!lastCloudSyncOk){
+    alert('⚠ تنبيه: تعذّر حفظ هذه الحركة على السحابة (مشكلة اتصال أو صلاحيات). البيانات محفوظة مؤقتًا على هذا الجهاز فقط — لو عملت تحديث للصفحة قبل ما تنحل المشكلة، ممكن تختفي. جرّب "حفظ الآن" من القائمة الجانبية بعد شوي.');
+  }
+  closeModal(); render();
   state.transactions = state.transactions.filter(t=>t.id!==id);
   await storageRemove('attachment:'+id);
   await saveState(); render();
