@@ -1923,7 +1923,7 @@ function renderDriverRooms(main){
       <td>${notRented ? '—' : (due.remaining>0 ? `<b style="color:var(--red);">${fmt(due.remaining)} ر.س</b>` : `<b style="color:var(--green);">مسدد بالكامل</b>`)}</td>
       <td>
         <button class="icon-btn" onclick="openDriverRoomModal('${r.id}')">تعديل</button>
-        ${r.tenant && Number(r.monthlyRent)>0 ? `<button class="icon-btn" onclick="recordDriverRoomPayment('${r.id}')">+ تسجيل دفعة</button>` : ''}
+        ${r.tenant && Number(r.monthlyRent)>0 ? `<button class="icon-btn" onclick="recordDriverRoomPayment('${r.id}', this)">+ تسجيل دفعة</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1958,18 +1958,31 @@ async function saveDriverRoom(id){
   r.collected = Number(document.getElementById('f-drcollected').value)||0;
   await saveState(); closeModal(); render();
 }
-async function recordDriverRoomPayment(id){
-  const r = state.driverRooms.find(x=>x.id===id);
-  const amount = Number(r.monthlyRent)||0;
-  if(amount<=0) return;
-  r.collected = Number(r.collected||0) + amount;
-  state.transactions.push({
-    id:'t'+(state.nextIds.tx++),
-    type:'income', amount, category:'إيجار غرف السواقين',
-    method:'كاش', note:`إيجار غرفة ${r.number} — ${r.tenant}`,
-    date:new Date().toISOString().slice(0,10), hasAttachment:false
-  });
-  await saveState(); render();
+let paymentInFlight = {};
+async function recordDriverRoomPayment(id, btn){
+  if(paymentInFlight[id]) return; // already processing this room's payment — ignore extra taps
+  paymentInFlight[id] = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'جارٍ الحفظ...'; }
+  try{
+    const r = state.driverRooms.find(x=>x.id===id);
+    const amount = Number(r.monthlyRent)||0;
+    if(amount<=0) return;
+    r.collected = Number(r.collected||0) + amount;
+    state.transactions.push({
+      id:'t'+(state.nextIds.tx++),
+      type:'income', amount, category:'إيجار غرف السواقين',
+      method:'كاش', note:`إيجار غرفة ${r.number} — ${r.tenant}`,
+      date:new Date().toISOString().slice(0,10), hasAttachment:false,
+      roomId:r.id
+    });
+    await saveState();
+    if(!lastCloudSyncOk){
+      alert('⚠ تنبيه: تعذّر حفظ هذه الدفعة على السحابة (مشكلة اتصال أو صلاحيات). جرّب "حفظ الآن" من القائمة الجانبية بعد شوي، وتجنّب الضغط على الزر مرة ثانية قبل التأكد.');
+    }
+  } finally {
+    paymentInFlight[id] = false;
+    render();
+  }
 }
 function buildDriverRoomsReportHTML(){
   const today = new Date().toLocaleDateString('ar-SA');
@@ -2234,6 +2247,13 @@ async function saveTx(id){
     alert('⚠ تنبيه: تعذّر حفظ هذه الحركة على السحابة (مشكلة اتصال أو صلاحيات). البيانات محفوظة مؤقتًا على هذا الجهاز فقط — لو عملت تحديث للصفحة قبل ما تنحل المشكلة، ممكن تختفي. جرّب "حفظ الآن" من القائمة الجانبية بعد شوي.');
   }
   closeModal(); render();
+}
+async function deleteTx(id){
+  const tx = state.transactions.find(t=>t.id===id);
+  if(tx && tx.roomId){
+    const r = state.driverRooms.find(x=>x.id===tx.roomId);
+    if(r) r.collected = Math.max(0, Number(r.collected||0) - Number(tx.amount||0));
+  }
   state.transactions = state.transactions.filter(t=>t.id!==id);
   await storageRemove('attachment:'+id);
   await saveState(); render();
