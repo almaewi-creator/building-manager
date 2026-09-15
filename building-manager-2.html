@@ -322,8 +322,9 @@ function defaultState(){
     equipment: [],
     maintenance: [],
     driverRooms: [1,2,3,4,5].map(n=>({id:'dr'+n, number:n, tenant:'', monthlyRent:0, collected:0, startMonth:''})),
+    monthlyReports: [],
     openingBalance: 0,
-    nextIds: {owner:31, unit:31, tx:1, eq:1, mnt:1}
+    nextIds: {owner:31, unit:31, tx:1, eq:1, mnt:1, report:1}
   };
 }
 
@@ -470,6 +471,8 @@ function migrateState(){
   if(state.billingStartMonth===undefined) state.billingStartMonth = '';
   if(state.billingModeIgnoreStart===undefined) state.billingModeIgnoreStart = false;
   if(state.openingBalance===undefined) state.openingBalance = 0;
+  if(!Array.isArray(state.monthlyReports)) state.monthlyReports = [];
+  if(!state.nextIds.report) state.nextIds.report = 1;
   (state.units||[]).forEach(u=>{ if(!Array.isArray(u.notes)) u.notes = []; });
 }
 async function saveState(){
@@ -645,6 +648,7 @@ const NAV = [
   {id:'payments', label:'الدفعات الشهرية', icon:'💳'},
   {id:'driverRooms', label:'غرف السواقين', icon:'🚗'},
   {id:'finance', label:'الإيرادات والمصروفات', icon:'📊'},
+  {id:'monthlyReports', label:'التقارير الشهرية', icon:'📑'},
   {id:'equipment', label:'معدات المبنى', icon:'⚙'},
   {id:'maintenance', label:'الصيانة', icon:'🛠'},
   {id:'settings', label:'الإعدادات', icon:'⚙️'}
@@ -710,6 +714,7 @@ function render(){
   else if(currentView==='payments') renderPayments(main);
   else if(currentView==='driverRooms') renderDriverRooms(main);
   else if(currentView==='finance') renderFinance(main);
+  else if(currentView==='monthlyReports') renderMonthlyReports(main);
   else if(currentView==='equipment') renderEquipment(main);
   else if(currentView==='maintenance') renderMaintenance(main);
   else if(currentView==='settings') renderSettings(main);
@@ -2291,6 +2296,101 @@ async function viewAttachment(id){
       </head><body>${body}</body></html>`);
     w.document.close();
   }catch(e){ alert('تعذّر عرض المرفق'); }
+}
+
+/* ---------------- Monthly Reports (PDF per month) ---------------- */
+function renderMonthlyReports(main){
+  topbar(main, state.buildingName, 'التقارير الشهرية', 'ارفع تقرير PDF خاص بكل شهر (مثلًا تقرير المحاسب أو كشف حساب البنك) واحتفظ به هنا بشكل منظم.',
+    '<button class="btn" onclick="openAddMonthlyReportModal()">+ إضافة شهر</button>');
+
+  const rows = [...state.monthlyReports].sort((a,b)=> (b.month||'').localeCompare(a.month||''));
+
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.innerHTML = `
+    <table>
+      <thead><tr><th>الشهر</th><th>الملف</th><th></th></tr></thead>
+      <tbody>
+      ${rows.length ? rows.map(r=>`
+        <tr>
+          <td style="font-weight:700;">${monthLabel(r.month)}</td>
+          <td>${r.hasFile ? `📄 ${esc(r.fileName||'ملف مرفوع')}` : `<span style="color:var(--text-dim);">لا يوجد ملف بعد</span>`}</td>
+          <td style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            ${r.hasFile ? `<button class="icon-btn" onclick="viewMonthlyReportFile('${r.id}')">👁 عرض</button>` : ''}
+            <label class="btn-ghost btn-sm" style="cursor:pointer;">
+              ${r.hasFile ? 'استبدال الملف' : 'رفع ملف PDF'}
+              <input type="file" accept="application/pdf" style="display:none;" onchange="uploadMonthlyReportFile('${r.id}', this)">
+            </label>
+            <button class="icon-btn" onclick="deleteMonthlyReportRow('${r.id}')">حذف</button>
+          </td>
+        </tr>`).join('') : `<tr><td colspan="3" class="empty">ما فيه أشهر مضافة بعد — اضغط "+ إضافة شهر" للبدء</td></tr>`}
+      </tbody>
+    </table>
+  `;
+  main.appendChild(panel);
+}
+function openAddMonthlyReportModal(){
+  const now = new Date();
+  const defaultMonth = now.toISOString().slice(0,7);
+  showModal(`
+    <h3>إضافة شهر جديد</h3>
+    <div class="field"><label>الشهر</label><input id="f-newreportmonth" type="month" value="${defaultMonth}"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="addMonthlyReportMonth()">إضافة</button>
+    </div>
+  `);
+}
+async function addMonthlyReportMonth(){
+  const month = document.getElementById('f-newreportmonth').value;
+  if(!month){ alert('اختر الشهر أولًا'); return; }
+  if(state.monthlyReports.some(r=>r.month===month)){
+    alert('هذا الشهر مضاف مسبقًا');
+    return;
+  }
+  state.monthlyReports.push({id:'rep'+(state.nextIds.report++), month, fileName:'', hasFile:false});
+  await saveState();
+  closeModal();
+  render();
+}
+async function uploadMonthlyReportFile(id, inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  if(file.type !== 'application/pdf'){ alert('الرجاء اختيار ملف PDF فقط'); return; }
+  if(file.size > 4.5*1024*1024){ alert('حجم الملف كبير جدًا (الحد الأقصى تقريبًا 4.5 ميغابايت)'); return; }
+  const r = state.monthlyReports.find(x=>x.id===id);
+  if(!r) return;
+  try{
+    const dataUrl = await readFileAsDataURL(file);
+    await storageSet('attachment:report:'+id, JSON.stringify({name:file.name, type:file.type, data:dataUrl}));
+    r.hasFile = true;
+    r.fileName = file.name;
+    await saveState();
+    if(!lastCloudSyncOk){
+      alert('⚠ تنبيه: تعذّر حفظ هذا الملف على السحابة (مشكلة اتصال أو صلاحيات). جرّب "حفظ الآن" من القائمة الجانبية بعد شوي.');
+    }
+    render();
+  }catch(e){ alert('تعذّر رفع الملف'); }
+}
+async function viewMonthlyReportFile(id){
+  try{
+    const raw = await storageGet('attachment:report:'+id);
+    if(!raw){ alert('تعذّر العثور على الملف'); return; }
+    const {name, data} = JSON.parse(raw);
+    const w = window.open('', '_blank');
+    if(!w){ alert('يرجى السماح بالنوافذ المنبثقة لعرض الملف'); return; }
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>${esc(name)}</title>
+      <style>html,body{margin:0;background:#22282a;min-height:100vh;}</style>
+      </head><body><iframe src="${data}" style="width:100vw;height:100vh;border:none;"></iframe></body></html>`);
+    w.document.close();
+  }catch(e){ alert('تعذّر عرض الملف'); }
+}
+async function deleteMonthlyReportRow(id){
+  if(!confirm('حذف هذا الشهر وملفه نهائيًا؟')) return;
+  state.monthlyReports = state.monthlyReports.filter(r=>r.id!==id);
+  await storageRemove('attachment:report:'+id);
+  await saveState();
+  render();
 }
 
 /* ---------------- equipment ---------------- */
