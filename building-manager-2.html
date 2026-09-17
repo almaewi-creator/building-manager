@@ -958,6 +958,7 @@ function renderDashboard(main){
   stats2.innerHTML = `
     <div class="stat-card tint-blue"><div class="lbl">إجمالي المحصّل من الاشتراكات</div><div class="num">${fmt(collected)} ر.س</div></div>
     <div class="stat-card tint-blue"><div class="lbl">إجمالي المحصّل من إيرادات الغرف</div><div class="num">${fmt(roomsCollected)} ر.س</div></div>
+    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">إجمالي المصروفات</div><div class="num" style="color:#c0392b;">${fmt(expense)} ر.س</div></div>
     <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;">
       <div class="lbl">إجمالي المستحقات المتأخرة</div>
       <div class="num">${fmt(Math.abs(totalArrears))} ر.س</div>
@@ -2065,15 +2066,21 @@ function renderFinance(main){
 
   const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const subsCollected = state.units.reduce((s,u)=>s+Number(u.collected||0),0);
   const stats = document.createElement('div');
   stats.className='stats-row';
-  stats.style.gridTemplateColumns='repeat(3,1fr)';
+  stats.style.gridTemplateColumns='repeat(4,1fr)';
   stats.innerHTML = `
-    <div class="stat-card tint-green"><div class="lbl">الإيرادات</div><div class="num">${fmt(income)} ر.س</div></div>
+    <div class="stat-card tint-blue"><div class="lbl">التحصيل الشهري من اشتراكات الشقق</div><div class="num">${fmt(subsCollected)} ر.س</div></div>
+    <div class="stat-card tint-green"><div class="lbl">إيرادات أخرى (غرف وغيرها)</div><div class="num">${fmt(income)} ر.س</div></div>
     <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات</div><div class="num">${fmt(expense)} ر.س</div></div>
-    <div class="stat-card tint-blue"><div class="lbl">الصافي</div><div class="num">${fmt(income-expense)} ر.س</div></div>
+    <div class="stat-card tint-blue"><div class="lbl">الصافي (شامل اشتراكات الشقق)</div><div class="num">${fmt(subsCollected+income-expense)} ر.س</div></div>
   `;
   main.appendChild(stats);
+  const financeSubsNote = document.createElement('div');
+  financeSubsNote.style.cssText = 'font-size:11.5px;color:var(--text-dim);margin:-14px 0 14px;padding:0 2px;';
+  financeSubsNote.textContent = 'اشتراكات الشقق تُدار من صفحة "الدفعات الشهرية" ولا تظهر كسجل حركة هنا بالأسفل — لكنها محسوبة في "الصافي" أعلاه.';
+  main.appendChild(financeSubsNote);
 
   const tabs = document.createElement('div');
   tabs.style.cssText='display:flex;gap:8px;margin:14px 0;';
