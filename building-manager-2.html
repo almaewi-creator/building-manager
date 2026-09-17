@@ -966,7 +966,7 @@ function renderDashboard(main){
         <span class="badge red">حالية: ${fmt(Math.abs(totalArrearsCurrent))}</span>
       </div>
     </div>
-    <div class="stat-card ${accountBalance>=0?'tint-green':''}" style="${accountBalance<0?'background:var(--red-tint);border-color:#f3d3d0;':''}"><div class="lbl">رصيد الحساب الحالي (الباقي فعليًا)</div><div class="num">${fmt(accountBalance)} ر.س</div></div>
+    <div class="stat-card ${accountBalance>=0?'tint-green':''}" style="${accountBalance<0?'background:var(--red-tint);border-color:#f3d3d0;':''}"><div class="lbl">رصيد الحساب الحالي (الباقي فعليًا)</div><div class="num" ${accountBalance<0?'style="color:#c0392b;"':''}>${accountBalance<0?`(${fmt(Math.abs(accountBalance))})`:fmt(accountBalance)} ر.س</div></div>
   `;
   main.appendChild(stats2);
   const financeNote = document.createElement('div');
