@@ -957,7 +957,7 @@ function renderDashboard(main){
     if(rec && rec.paid) subsCollectedThisMonth += Number(rec.amount)||0;
   });
   const roomsIncomeThisMonth = state.transactions
-    .filter(t=>t.type==='income' && t.category==='إيجار غرف السواقين' && (t.date||'').slice(0,7)===curMonthKey)
+    .filter(t=>t.type==='income' && t.category==='إيجار غرف السواقين' && t.forMonth===curMonthKey)
     .reduce((s,t)=>s+Number(t.amount),0);
   const stats2 = document.createElement('div');
   stats2.className='stats-row';
@@ -1942,7 +1942,7 @@ function renderDriverRooms(main){
       <td>${notRented ? '—' : (due.remaining>0 ? `<b style="color:var(--red);">${fmt(due.remaining)} ر.س</b>` : `<b style="color:var(--green);">مسدد بالكامل</b>`)}</td>
       <td>
         <button class="icon-btn" onclick="openDriverRoomModal('${r.id}')">تعديل</button>
-        ${r.tenant && Number(r.monthlyRent)>0 ? `<button class="icon-btn" onclick="recordDriverRoomPayment('${r.id}')">+ تسجيل دفعة</button>` : ''}
+        ${r.tenant && Number(r.monthlyRent)>0 ? `<button class="icon-btn" onclick="openRecordRoomPaymentModal('${r.id}')">+ تسجيل دفعة</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1974,18 +1974,44 @@ async function saveDriverRoom(id){
   r.startMonth = document.getElementById('f-drstart').value;
   await saveState(); closeModal(); render();
 }
+let paymentInFlight = {};
+function openRecordRoomPaymentModal(id){
+  const r = state.driverRooms.find(x=>x.id===id);
+  if(!r) return;
+  showModal(`
+    <h3>تسجيل دفعة — غرفة ${r.number} (${esc(r.tenant)})</h3>
+    <div class="field"><label>عن أي شهر هذه الدفعة؟</label><input id="f-rrpmonth" type="month" value="${currentMonthKey()}"></div>
+    <p style="font-size:11.5px;color:var(--text-dim);margin-top:-8px;">مهم: اختر الشهر اللي فعليًا يغطيه هذا المبلغ (مو بالضرورة الشهر الحالي)، عشان أرقام "الشهر الحالي" بلوحة التحكم تكون دقيقة.</p>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+      <button class="btn" onclick="recordDriverRoomPayment('${id}')">تسجيل ${fmt(r.monthlyRent)} ر.س</button>
+    </div>
+  `);
+}
 async function recordDriverRoomPayment(id){
   const r = state.driverRooms.find(x=>x.id===id);
   const amount = Number(r.monthlyRent)||0;
   if(amount<=0) return;
-  r.collected = Number(r.collected||0) + amount;
-  state.transactions.push({
-    id:'t'+(state.nextIds.tx++),
-    type:'income', amount, category:'إيجار غرف السواقين',
-    method:'كاش', note:`إيجار غرفة ${r.number} — ${r.tenant}`,
-    date:new Date().toISOString().slice(0,10), hasAttachment:false
-  });
-  await saveState(); render();
+  const forMonth = document.getElementById('f-rrpmonth') ? document.getElementById('f-rrpmonth').value : currentMonthKey();
+  if(paymentInFlight[id]) return;
+  paymentInFlight[id] = true;
+  try{
+    r.collected = Number(r.collected||0) + amount;
+    state.transactions.push({
+      id:'t'+(state.nextIds.tx++),
+      type:'income', amount, category:'إيجار غرف السواقين',
+      method:'كاش', note:`إيجار غرفة ${r.number} — ${r.tenant} (عن شهر ${monthLabel(forMonth)})`,
+      date:new Date().toISOString().slice(0,10), hasAttachment:false,
+      roomId:r.id, forMonth
+    });
+    await saveState();
+    if(!lastCloudSyncOk){
+      alert('⚠ تنبيه: تعذّر حفظ هذه الدفعة على السحابة (مشكلة اتصال أو صلاحيات). جرّب "حفظ الآن" من القائمة الجانبية بعد شوي.');
+    }
+  } finally {
+    paymentInFlight[id] = false;
+    closeModal(); render();
+  }
 }
 function buildDriverRoomsReportHTML(){
   const today = new Date().toLocaleDateString('ar-SA');
@@ -2248,6 +2274,11 @@ async function saveTx(id){
   await saveState(); closeModal(); render();
 }
 async function deleteTx(id){
+  const tx = state.transactions.find(t=>t.id===id);
+  if(tx && tx.roomId){
+    const r = state.driverRooms.find(x=>x.id===tx.roomId);
+    if(r) r.collected = Math.max(0, Number(r.collected||0) - Number(tx.amount||0));
+  }
   state.transactions = state.transactions.filter(t=>t.id!==id);
   await storageRemove('attachment:'+id);
   await saveState(); render();
