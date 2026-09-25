@@ -948,29 +948,29 @@ function renderDashboard(main){
   main.appendChild(stats);
 
   const accountBalance = Number(state.openingBalance||0) + netIncome - expense;
-  /* Split expenses proportionally between the two income sources so each
-     card can show its own "share" of the current balance, not just the
-     raw amount collected. This is an allocation for display purposes only
-     — actual expenses aren't tagged by source — so it's an estimate. */
-  const totalKnownIncome = collected + roomsCollected;
-  const subsShare = totalKnownIncome>0 ? collected/totalKnownIncome : 0;
-  const subsNet = collected - expense*subsShare;
-  const roomsNet = roomsCollected - expense*(1-subsShare);
-  const netLine = (n)=> n>=0
-    ? `<span style="color:#1f9d55">${fmt(n)} ر.س</span>`
-    : `<span style="color:#c0392b">⚠ عجز ${fmt(Math.abs(n))} ر.س</span>`;
+  /* Current-month figures per source, shown as a sub-line under each
+     all-time total so the card answers both "overall" and "this month". */
+  const curMonthKey = currentMonthKey();
+  let subsCollectedThisMonth = 0;
+  state.units.forEach(u=>{
+    const rec = state.payments[u.id+'|'+curMonthKey];
+    if(rec && rec.paid) subsCollectedThisMonth += Number(rec.amount)||0;
+  });
+  const roomsIncomeThisMonth = state.transactions
+    .filter(t=>t.type==='income' && t.category==='إيجار غرف السواقين' && (t.date||'').slice(0,7)===curMonthKey)
+    .reduce((s,t)=>s+Number(t.amount),0);
   const stats2 = document.createElement('div');
   stats2.className='stats-row';
   stats2.innerHTML = `
     <div class="stat-card tint-blue">
       <div class="lbl">إجمالي المحصّل من الاشتراكات</div>
       <div class="num">${fmt(collected)} ر.س</div>
-      <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">الرصيد الحالي لهذا المصدر: ${netLine(subsNet)}</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">الشهر الحالي: <b style="color:#1f7a4a;">${fmt(subsCollectedThisMonth)} ر.س</b></div>
     </div>
     <div class="stat-card tint-blue">
       <div class="lbl">إجمالي المحصّل من إيرادات الغرف</div>
       <div class="num">${fmt(roomsCollected)} ر.س</div>
-      <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">الرصيد الحالي لهذا المصدر: ${netLine(roomsNet)}</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">الشهر الحالي: <b style="color:#1f7a4a;">${fmt(roomsIncomeThisMonth)} ر.س</b></div>
     </div>
     <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;">
       <div class="lbl">إجمالي المستحقات المتأخرة</div>
