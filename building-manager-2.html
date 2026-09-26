@@ -1957,13 +1957,14 @@ async function saveSettings(){
   alert('تم حفظ الإعدادات ✅');
 }
 
+let roomPaymentsMonth = currentMonthKey();
 function renderDriverRooms(main){
-  topbar(main, state.buildingName, 'غرف السواقين', 'إيجار غرف السواقين الخمسة — منفصل عن اشتراكات الشقق، ويُضاف تلقائيًا لإجمالي الإيرادات.',
+  topbar(main, state.buildingName, 'غرف السواقين', 'إيجار غرف السواقين الخمسة — يُدار الآن بنفس طريقة الدفعات الشهرية للشقق: تحدد الشهر وتؤشر كل غرفة كمدفوعة أو غير مدفوعة.',
     '<button class="btn-ghost btn-sm" onclick="printDriverRoomsReport()">🖨 طباعة كشف الغرف</button>');
 
   const totalMonthly = state.driverRooms.reduce((s,r)=>s+Number(r.monthlyRent||0),0);
-  const totalCollected = state.driverRooms.reduce((s,r)=>s+Number(r.collected||0),0);
-  const totalRemaining = state.driverRooms.reduce((s,r)=>s+computeRoomDue(r).remaining,0);
+  const totalCollected = state.driverRooms.reduce((s,r)=>s+computeRoomCollected(r),0);
+  const totalRemaining = state.driverRooms.reduce((s,r)=>s+Math.max(computeRoomDue(r).remaining,0),0);
   const stats = document.createElement('div');
   stats.className='stats-row';
   stats.style.gridTemplateColumns='repeat(3,1fr)';
@@ -1974,27 +1975,38 @@ function renderDriverRooms(main){
   `;
   main.appendChild(stats);
 
+  const filters = document.createElement('div');
+  filters.className='filters-row';
+  filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">الشهر:</label>
+    <input type="month" id="roomMonthPicker" value="${roomPaymentsMonth}">`;
+  main.appendChild(filters);
+  filters.querySelector('#roomMonthPicker').onchange = (e)=>{ roomPaymentsMonth = e.target.value; render(); };
+
   const panel = document.createElement('div');
   panel.className = 'panel';
+  let monthTotalDue=0, monthTotalPaid=0;
   const rows = state.driverRooms.map(r=>{
-    const due = computeRoomDue(r);
-    const notRented = !r.tenant;
+    const notRented = !r.tenant || Number(r.monthlyRent)<=0;
+    const beforeStart = !notRented && r.startMonth && roomPaymentsMonth < r.startMonth;
+    const key = r.id+'|'+roomPaymentsMonth;
+    const rec = state.roomPayments[key] || {paid:false, amount:r.monthlyRent||0};
+    const isCustom = !notRented && !beforeStart && rec.amount !== Number(r.monthlyRent||0);
+    if(!notRented && !beforeStart){ monthTotalDue += Number(rec.amount); if(rec.paid) monthTotalPaid += Number(rec.amount); }
     return `<tr>
       <td><b>غرفة ${r.number}</b></td>
       <td>${esc(r.tenant)||'<span style="color:var(--text-dim);">— بدون مستأجر —</span>'}</td>
       <td>${r.startMonth ? monthLabel(r.startMonth) : '—'}</td>
-      <td>${fmt(r.monthlyRent)} ر.س</td>
-      <td>${notRented ? '—' : due.monthsDue}</td>
-      <td><b style="color:var(--green);">${fmt(r.collected)} ر.س</b></td>
-      <td>${notRented ? '—' : (due.remaining>0 ? `<b style="color:var(--red);">${fmt(due.remaining)} ر.س</b>` : `<b style="color:var(--green);">مسدد بالكامل</b>`)}</td>
+      <td>${notRented ? '—' : beforeStart ? '<span style="color:var(--text-dim);">قبل بداية الإيجار</span>' : `${fmt(rec.amount)} ر.س${isCustom?' <span class="badge amber" style="margin-inline-start:4px;">مُعدَّل</span>':''}`}</td>
+      <td>${(notRented||beforeStart) ? '—' : statusBadge(rec.paid?'مدفوعة':'غير مدفوعة')}</td>
       <td>
-        <button class="icon-btn" onclick="openDriverRoomModal('${r.id}')">تعديل</button>
-        ${r.tenant && Number(r.monthlyRent)>0 ? `<button class="icon-btn" onclick="openRecordRoomPaymentModal('${r.id}')">+ تسجيل دفعة</button>` : ''}
+        <button class="icon-btn" onclick="openDriverRoomModal('${r.id}')">تعديل الغرفة</button>
+        ${(!notRented && !beforeStart) ? `<button class="icon-btn" onclick="toggleRoomPayment('${r.id}')">${rec.paid?'إلغاء الدفع':'تحديد كمدفوعة'}</button>
+        <button class="icon-btn" onclick="openRoomPaymentEditModal('${r.id}')">✎ تعديل المبلغ</button>` : ''}
       </td>
     </tr>`;
   }).join('');
-  panel.innerHTML = `<div class="panel-title">غرف السواقين</div>
-    <table><thead><tr><th>الغرفة</th><th>اسم المستأجر</th><th>بداية الإيجار</th><th>الأجر الشهري</th><th>أشهر مستحقة</th><th>الإجمالي المحصّل</th><th>المتبقي</th><th></th></tr></thead>
+  panel.innerHTML = `<div class="panel-title">تحصيل ${monthLabel(roomPaymentsMonth)} — ${fmt(monthTotalPaid)} / ${fmt(monthTotalDue)} ر.س</div>
+    <table><thead><tr><th>الغرفة</th><th>اسم المستأجر</th><th>بداية الإيجار</th><th>مبلغ الشهر</th><th>الحالة</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table>`;
   main.appendChild(panel);
 }
@@ -2007,7 +2019,7 @@ function openDriverRoomModal(id){
       <div class="field"><label>الأجر الشهري (ر.س)</label><input id="f-drrent" type="number" value="${r.monthlyRent}"></div>
       <div class="field"><label>بداية الإيجار (الشهر)</label><input id="f-drstart" type="month" value="${r.startMonth||''}"></div>
     </div>
-    <p style="font-size:11.5px;color:var(--text-dim);margin-top:-8px;">اترك اسم المستأجر فاضي إذا الغرفة غير مؤجّرة حاليًا.</p>
+    <p style="font-size:11.5px;color:var(--text-dim);margin-top:-8px;">اترك اسم المستأجر فاضي إذا الغرفة غير مؤجّرة حاليًا. سداد كل شهر يُدار من جدول الأشهر بصفحة الغرف (نفس طريقة اشتراكات الشقق)، مو من هنا.</p>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
       <button class="btn" onclick="saveDriverRoom('${id}')">حفظ</button>
@@ -2021,49 +2033,58 @@ async function saveDriverRoom(id){
   r.startMonth = document.getElementById('f-drstart').value;
   await saveState(); closeModal(); render();
 }
-let paymentInFlight = {};
-function openRecordRoomPaymentModal(id){
-  const r = state.driverRooms.find(x=>x.id===id);
-  if(!r) return;
+async function toggleRoomPayment(roomId){
+  const key = roomId+'|'+roomPaymentsMonth;
+  const r = state.driverRooms.find(x=>x.id===roomId);
+  const rec = state.roomPayments[key] || {paid:false, amount:r.monthlyRent||0};
+  rec.paid = !rec.paid;
+  rec.amount = rec.amount || r.monthlyRent || 0;
+  state.roomPayments[key] = rec;
+  await saveState();
+  if(!lastCloudSyncOk){
+    alert('⚠ تنبيه: تعذّر حفظ هذا التعديل على السحابة (مشكلة اتصال أو صلاحيات). جرّب "حفظ الآن" من القائمة الجانبية بعد شوي.');
+  }
+  render();
+}
+function openRoomPaymentEditModal(roomId){
+  const r = state.driverRooms.find(x=>x.id===roomId);
+  const key = roomId+'|'+roomPaymentsMonth;
+  const rec = state.roomPayments[key] || {paid:false, amount:r.monthlyRent||0};
   showModal(`
-    <h3>تسجيل دفعة — غرفة ${r.number} (${esc(r.tenant)})</h3>
-    <div class="field"><label>عن أي شهر هذه الدفعة؟</label><input id="f-rrpmonth" type="month" value="${currentMonthKey()}"></div>
-    <p style="font-size:11.5px;color:var(--text-dim);margin-top:-8px;">مهم: اختر الشهر اللي فعليًا يغطيه هذا المبلغ (مو بالضرورة الشهر الحالي)، عشان أرقام "الشهر الحالي" بلوحة التحكم تكون دقيقة.</p>
+    <h3>تعديل دفعة غرفة ${r.number} — ${monthLabel(roomPaymentsMonth)}</h3>
+    <p style="font-size:12.5px;color:var(--text-dim);margin-top:-6px;">استخدم هذا لتعديل مبلغ إيجار هذه الغرفة لهذا الشهر فقط، دون التأثير على الأجر الشهري الأساسي لباقي الشهور.</p>
+    <div class="field"><label>مبلغ هذا الشهر (ر.س)</label><input id="f-rpayamount" type="number" value="${rec.amount}"></div>
+    <div class="field">
+      <label>حالة السداد</label>
+      <select id="f-rpaystatus">
+        <option value="1" ${rec.paid?'selected':''}>مدفوعة</option>
+        <option value="0" ${!rec.paid?'selected':''}>غير مدفوعة</option>
+      </select>
+    </div>
     <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
-      <button class="btn" onclick="recordDriverRoomPayment('${id}')">تسجيل ${fmt(r.monthlyRent)} ر.س</button>
+      <button class="btn-ghost" onclick="resetRoomPaymentToDefault('${roomId}')">إعادة للمبلغ الافتراضي</button>
+      <button class="btn" onclick="saveRoomPaymentEdit('${roomId}')">حفظ</button>
     </div>
   `);
 }
-async function recordDriverRoomPayment(id){
-  const r = state.driverRooms.find(x=>x.id===id);
-  const amount = Number(r.monthlyRent)||0;
-  if(amount<=0) return;
-  const forMonth = document.getElementById('f-rrpmonth') ? document.getElementById('f-rrpmonth').value : currentMonthKey();
-  if(paymentInFlight[id]) return;
-  paymentInFlight[id] = true;
-  try{
-    r.collected = Number(r.collected||0) + amount;
-    state.transactions.push({
-      id:'t'+(state.nextIds.tx++),
-      type:'income', amount, category:'إيجار غرف السواقين',
-      method:'كاش', note:`إيجار غرفة ${r.number} — ${r.tenant} (عن شهر ${monthLabel(forMonth)})`,
-      date:new Date().toISOString().slice(0,10), hasAttachment:false,
-      roomId:r.id, forMonth
-    });
-    await saveState();
-    if(!lastCloudSyncOk){
-      alert('⚠ تنبيه: تعذّر حفظ هذه الدفعة على السحابة (مشكلة اتصال أو صلاحيات). جرّب "حفظ الآن" من القائمة الجانبية بعد شوي.');
-    }
-  } finally {
-    paymentInFlight[id] = false;
-    closeModal(); render();
-  }
+async function saveRoomPaymentEdit(roomId){
+  const key = roomId+'|'+roomPaymentsMonth;
+  const amount = Number(document.getElementById('f-rpayamount').value) || 0;
+  const paid = document.getElementById('f-rpaystatus').value === '1';
+  state.roomPayments[key] = { paid, amount };
+  await saveState(); closeModal(); render();
+}
+async function resetRoomPaymentToDefault(roomId){
+  const r = state.driverRooms.find(x=>x.id===roomId);
+  const key = roomId+'|'+roomPaymentsMonth;
+  const existing = state.roomPayments[key] || {paid:false};
+  state.roomPayments[key] = { paid: existing.paid, amount: r.monthlyRent||0 };
+  await saveState(); closeModal(); render();
 }
 function buildDriverRoomsReportHTML(){
   const today = new Date().toLocaleDateString('ar-SA');
   const totalMonthly = state.driverRooms.reduce((s,r)=>s+Number(r.monthlyRent||0),0);
-  const totalCollected = state.driverRooms.reduce((s,r)=>s+Number(r.collected||0),0);
+  const totalCollected = state.driverRooms.reduce((s,r)=>s+computeRoomCollected(r),0);
   const totalRemaining = state.driverRooms.reduce((s,r)=>s+Math.max(computeRoomDue(r).remaining,0),0);
   const rows = state.driverRooms.map(r=>{
     const due = computeRoomDue(r);
@@ -2074,7 +2095,7 @@ function buildDriverRoomsReportHTML(){
       <td>${r.startMonth ? monthLabel(r.startMonth) : '—'}</td>
       <td>${fmt(r.monthlyRent)} ر.س</td>
       <td>${notRented ? '—' : due.monthsDue}</td>
-      <td style="font-weight:700;color:#2f8f5b;">${fmt(r.collected)} ر.س</td>
+      <td style="font-weight:700;color:#2f8f5b;">${fmt(computeRoomCollected(r))} ر.س</td>
       <td style="font-weight:700;color:${due.remaining>0?'#c0392b':'#2f8f5b'};">${notRented?'—':(due.remaining>0?fmt(due.remaining)+' ر.س':'مسدد')}</td>
     </tr>`;
   }).join('');
