@@ -470,6 +470,31 @@ function migrateState(){
   if(state.billingStartMonth===undefined) state.billingStartMonth = '';
   if(state.billingModeIgnoreStart===undefined) state.billingModeIgnoreStart = false;
   if(state.openingBalance===undefined) state.openingBalance = 0;
+  if(!state.roomPayments) state.roomPayments = {};
+  /* One-time migration: driver rooms used to track payment with a single
+     ever-increasing "collected" counter (topped up by an "add payment"
+     button) instead of a per-month paid/unpaid record like apartment
+     subscriptions. To switch rooms onto that same month-grid system without
+     losing what was already recorded, seed roomPayments by marking the
+     earliest N months (starting from the room's rental start month) as
+     paid, consuming the old collected total one month's rent at a time. */
+  if(!state.roomPaymentsSeeded){
+    (state.driverRooms||[]).forEach(r=>{
+      if(r.startMonth && Number(r.monthlyRent)>0 && Number(r.collected)>0){
+        let remaining = Number(r.collected);
+        const end = lastCompletedMonthKey();
+        const months = monthsBetweenInclusive(r.startMonth, end);
+        months.forEach(mk=>{
+          const key = r.id+'|'+mk;
+          if(remaining >= Number(r.monthlyRent) && !state.roomPayments[key]){
+            state.roomPayments[key] = {paid:true, amount:Number(r.monthlyRent)};
+            remaining -= Number(r.monthlyRent);
+          }
+        });
+      }
+    });
+    state.roomPaymentsSeeded = true;
+  }
   (state.units||[]).forEach(u=>{ if(!Array.isArray(u.notes)) u.notes = []; });
 }
 async function saveState(){
@@ -905,7 +930,7 @@ function renderDashboard(main){
   const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const collected = state.units.reduce((s,u)=>s+Number(u.collected||0),0);
-  const roomsCollected = state.driverRooms.reduce((s,r)=>s+Number(r.collected||0),0);
+  const roomsCollected = state.driverRooms.reduce((s,r)=>s+computeRoomCollected(r),0);
   /* "income" already includes driver-room rent (pushed as a transaction when
      recorded), but unit subscriptions are tracked separately in state.payments
      and never become a transaction — so they must be added in here explicitly,
@@ -956,9 +981,11 @@ function renderDashboard(main){
     const rec = state.payments[u.id+'|'+curMonthKey];
     if(rec && rec.paid) subsCollectedThisMonth += Number(rec.amount)||0;
   });
-  const roomsIncomeThisMonth = state.transactions
-    .filter(t=>t.type==='income' && t.category==='إيجار غرف السواقين' && t.forMonth===curMonthKey)
-    .reduce((s,t)=>s+Number(t.amount),0);
+  let roomsIncomeThisMonth = 0;
+  state.driverRooms.forEach(r=>{
+    const rec = state.roomPayments[r.id+'|'+curMonthKey];
+    if(rec && rec.paid) roomsIncomeThisMonth += Number(rec.amount)||0;
+  });
   const stats2 = document.createElement('div');
   stats2.className='stats-row';
   stats2.innerHTML = `
@@ -1795,18 +1822,38 @@ function confirmPrintDefaulters(){
 
 /* ---------------- finance ---------------- */
 /* ---------------- driver rooms (separate rental income stream) ---------------- */
+/* Rooms are tracked with the same per-month paid/unpaid grid used for
+   apartment subscriptions (state.payments), stored in state.roomPayments
+   keyed by roomId+'|'+monthKey — rather than a single running "collected"
+   counter. This lets a specific month be marked/unmarked or corrected
+   without guessing which month an "add payment" click was meant to cover. */
+function computeRoomCollected(room){
+  let total = 0;
+  const prefix = room.id+'|';
+  Object.keys(state.roomPayments).forEach(k=>{
+    if(!k.startsWith(prefix)) return;
+    if(state.roomPayments[k].paid) total += Number(state.roomPayments[k].amount)||0;
+  });
+  return total;
+}
 /* Rooms follow the same rule as units: the current month isn't "due" until it
    has fully elapsed, so we only count up through the last completed month. */
 function computeRoomDue(room){
   if(!room.tenant || !room.startMonth || Number(room.monthlyRent)<=0){
-    return { monthsDue:0, totalDue:0, remaining:0 };
+    return { monthsDue:0, totalDue:0, paid:0, remaining:0 };
   }
   const end = lastCompletedMonthKey();
   const months = monthsBetweenInclusive(room.startMonth, end);
   const monthsDue = months.length;
-  const totalDue = monthsDue * Number(room.monthlyRent);
-  const remaining = totalDue - Number(room.collected||0);
-  return { monthsDue, totalDue, remaining };
+  let due=0, paid=0;
+  months.forEach(mk=>{
+    const rec = state.roomPayments[room.id+'|'+mk];
+    const amount = rec ? Number(rec.amount) : Number(room.monthlyRent);
+    due += amount;
+    if(rec && rec.paid) paid += amount;
+  });
+  const remaining = due - paid;
+  return { monthsDue, totalDue:due, paid, remaining };
 }
 /* ---------------- settings ---------------- */
 function renderSettings(main){
