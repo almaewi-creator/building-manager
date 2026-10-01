@@ -2134,26 +2134,38 @@ function printDriverRoomsReport(){
 }
 
 let financeFilter = 'all';
+let financeMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter)
 function renderFinance(main){
-  topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة.',
+  topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة — حدد شهرًا لعزل حركاته، أو اعرض كل الأشهر معًا.',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printFinanceReport()">🖨 طباعة التقرير المالي</button>'+
     '<button class="btn" onclick="openTxModal()">+ إضافة حركة</button>');
 
-  const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-  const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const filters = document.createElement('div');
+  filters.className='filters-row';
+  filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">الشهر:</label>
+    <input type="month" id="financeMonthPicker" value="${financeMonth||currentMonthKey()}" ${financeMonth?'':'disabled'}>
+    <button class="btn-ghost btn-sm" onclick="financeMonth=financeMonth?'':currentMonthKey();render();">${financeMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>`;
+  main.appendChild(filters);
+  filters.querySelector('#financeMonthPicker').onchange = (e)=>{ financeMonth = e.target.value; render(); };
+
+  // Month filter applies first (isolates the selected month, like الدفعات الشهرية), then the income/expense tab on top of it.
+  const monthScoped = financeMonth ? state.transactions.filter(t=>(t.date||'').slice(0,7)===financeMonth) : state.transactions;
+
+  const income = monthScoped.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const expense = monthScoped.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const stats = document.createElement('div');
   stats.className='stats-row';
   stats.style.gridTemplateColumns='repeat(3,1fr)';
   stats.innerHTML = `
-    <div class="stat-card tint-green"><div class="lbl">الإيرادات</div><div class="num">${fmt(income)} ر.س</div></div>
-    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات</div><div class="num">${fmt(expense)} ر.س</div></div>
-    <div class="stat-card tint-blue"><div class="lbl">الصافي</div><div class="num">${fmt(income-expense)} ر.س</div></div>
+    <div class="stat-card tint-green"><div class="lbl">الإيرادات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(income)} ر.س</div></div>
+    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(expense)} ر.س</div></div>
+    <div class="stat-card tint-blue"><div class="lbl">الصافي${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(income-expense)} ر.س</div></div>
   `;
   main.appendChild(stats);
 
   const tabs = document.createElement('div');
   tabs.style.cssText='display:flex;gap:8px;margin:14px 0;';
-  const tabDef = [['all','الكل',state.transactions.length],['income','إيرادات فقط',state.transactions.filter(t=>t.type==='income').length],['expense','مصروفات فقط',state.transactions.filter(t=>t.type==='expense').length]];
+  const tabDef = [['all','الكل',monthScoped.length],['income','إيرادات فقط',monthScoped.filter(t=>t.type==='income').length],['expense','مصروفات فقط',monthScoped.filter(t=>t.type==='expense').length]];
   tabs.innerHTML = tabDef.map(([key,label,count])=>
     `<button class="btn-ghost btn-sm" onclick="financeFilter='${key}';render();" style="${financeFilter===key?'background:var(--teal-dark);color:#fff;border-color:var(--teal-dark);':''}">${label} (${count})</button>`
   ).join('');
@@ -2162,7 +2174,7 @@ function renderFinance(main){
   const panel = document.createElement('div');
   panel.className='panel';
   let rows='';
-  const filtered = state.transactions.filter(t=>financeFilter==='all'||t.type===financeFilter);
+  const filtered = monthScoped.filter(t=>financeFilter==='all'||t.type===financeFilter);
   /* sort by the transaction/invoice date itself (newest first), not by
      when it was entered into the system; ties broken by entry order */
   const sorted = filtered
@@ -2181,14 +2193,20 @@ function renderFinance(main){
       <td><button class="icon-btn" onclick="openTxModal('${t.id}')">تعديل</button> <button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
     </tr>`;
   });
-  panel.innerHTML = `<table><thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th><th>المرفق</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">لا توجد حركات</td></tr>'}</tbody></table>`;
+  const scopeLabel = (financeMonth?monthLabel(financeMonth):'كل الأشهر') + (financeFilter==='all'?'':financeFilter==='income'?' — إيرادات فقط':' — مصروفات فقط');
+  panel.innerHTML = `<div class="panel-title">${scopeLabel} (${filtered.length})</div><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th><th>المرفق</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">لا توجد حركات</td></tr>'}</tbody></table>`;
   main.appendChild(panel);
 }
 function buildFinanceReportHTML(){
-  const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-  const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  // Respect the currently selected month (financeMonth) and type tab (financeFilter),
+  // exactly like what's shown on screen, so the printed report matches the view.
+  const monthScoped = financeMonth ? state.transactions.filter(t=>(t.date||'').slice(0,7)===financeMonth) : state.transactions;
+  const scoped = monthScoped.filter(t=>financeFilter==='all'||t.type===financeFilter);
+  const income = scoped.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const expense = scoped.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
   const today = new Date().toLocaleDateString('ar-SA');
-  const rows = [...state.transactions].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
+  const scopeLabel = (financeMonth?monthLabel(financeMonth):'كل الأشهر') + (financeFilter==='all'?'':financeFilter==='income'?' (إيرادات فقط)':' (مصروفات فقط)');
+  const rows = [...scoped].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
       <td>${esc(t.date)}</td>
       <td style="font-weight:700;color:${t.type==='income'?'#1f9d55':'#c0392b'}">${t.type==='income'?'إيراد':'مصروف'}</td>
       <td>${esc(t.category)}</td>
@@ -2202,15 +2220,15 @@ function buildFinanceReportHTML(){
       <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
       <div>
         <div class="stmt-building">${esc(state.buildingName)}</div>
-        <div class="stmt-title">تقرير الإيرادات والمصروفات</div>
+        <div class="stmt-title">تقرير الإيرادات والمصروفات — ${esc(scopeLabel)}</div>
       </div>
       <div class="stmt-date">تاريخ الطباعة: ${today}</div>
     </div>
     <table class="stmt-info">
       <tr>
-        <td><b>إجمالي الإيرادات:</b> ${fmt(income)} ر.س</td>
-        <td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>
-        <td><b>الصافي:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${fmt(income-expense)} ر.س</span></td>
+        ${financeFilter!=='expense'?`<td><b>إجمالي الإيرادات:</b> ${fmt(income)} ر.س</td>`:''}
+        ${financeFilter!=='income'?`<td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>`:''}
+        ${financeFilter==='all'?`<td><b>الصافي:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${fmt(income-expense)} ر.س</span></td>`:''}
       </tr>
     </table>
     <div class="stmt-table-scroll"><table class="stmt-table">
