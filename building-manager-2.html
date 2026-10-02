@@ -283,18 +283,26 @@
     font-family:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;}
   .vch-card::before{content:"";position:absolute;inset:10px;border:1px solid #16181d;pointer-events:none;border-radius:6px;}
   .vch-card::after{content:"";position:absolute;inset:14px;border:1px solid #a8833a;opacity:.55;pointer-events:none;border-radius:4px;}
-  .vch-card header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;position:relative;}
-  .vch-brand{display:flex;align-items:center;gap:12px;}
-  .vch-brand img{width:48px;height:48px;object-fit:contain;border-radius:8px;}
-  .vch-brand h1{font:700 20px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;}
-  .vch-brand small{display:block;color:#6b6f7a;font-size:12px;direction:ltr;text-align:right;}
+  .vch-card header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;position:relative;
+    background:linear-gradient(180deg,#faf5e7 0%,#ffffff 100%);border-radius:12px;padding:18px 22px;margin:-4px -4px 22px;
+    box-shadow:inset 0 -2px 0 #a8833a;}
+  .vch-brand{display:flex;align-items:center;gap:14px;}
+  .vch-logo-frame{width:58px;height:58px;border-radius:16px;background:#fff;border:1px solid #e6d7ac;
+    box-shadow:0 3px 10px rgba(168,131,58,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .vch-logo-frame img{width:42px;height:42px;object-fit:contain;}
+  .vch-brand h1{font:700 21px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;color:#16181d;}
+  .vch-brand small{display:block;color:#8a8f99;font-size:11.5px;direction:ltr;text-align:right;margin-top:3px;}
   .vch-title{text-align:center;}
-  .vch-title h2{font:700 28px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:6px 26px 8px;border-block:2px solid #16181d;}
-  .vch-title span{display:block;font:600 11px "IBM Plex Sans Arabic",sans-serif;letter-spacing:.3em;color:#a8833a;margin-top:6px;direction:ltr;}
-  .vch-meta{display:grid;gap:6px;justify-self:end;min-width:0;}
+  .vch-title h2{font:700 29px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:9px 30px 11px;position:relative;color:#16181d;}
+  .vch-title h2::before,.vch-title h2::after{content:"";position:absolute;right:0;left:0;height:2px;
+    background:linear-gradient(90deg,transparent,#a8833a 18%,#a8833a 82%,transparent);}
+  .vch-title h2::before{top:0;}
+  .vch-title h2::after{bottom:0;}
+  .vch-title span{display:block;font:600 11px "IBM Plex Sans Arabic",sans-serif;letter-spacing:.35em;color:#a8833a;margin-top:8px;direction:ltr;}
+  .vch-meta{display:grid;gap:7px;justify-self:end;min-width:0;}
   .vch-meta label{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b6f7a;justify-content:flex-end;}
   .vch-meta input{width:130px;text-align:center;}
-  .vch-no{font:700 18px inherit;color:#b3261e;font-variant-numeric:tabular-nums;}
+  .vch-no{font:700 19px inherit;color:#b3261e;font-variant-numeric:tabular-nums;background:#fdeceb;padding:2px 10px;border-radius:6px;}
   .vch-card input,.vch-card select,.vch-card textarea{font:500 15px "IBM Plex Sans Arabic",sans-serif;color:#16181d;background:transparent;border:0;border-bottom:1px dotted #6b6f7a;padding:4px 2px;border-radius:0;width:100%;}
   .vch-card input:focus-visible,.vch-card select:focus-visible{outline:2px solid #a8833a;outline-offset:2px;}
   .vch-amount-row{display:flex;gap:14px;align-items:stretch;margin-top:20px;flex-wrap:wrap;}
@@ -382,6 +390,7 @@ function defaultState(){
     openingBalance: 0,
     nextVoucherNo: 1,
     voucherDefaults: {accountant:'', manager:''},
+    vouchers: [],
     nextIds: {owner:31, unit:31, tx:1, eq:1, mnt:1}
   };
 }
@@ -531,6 +540,7 @@ function migrateState(){
   if(state.openingBalance===undefined) state.openingBalance = 0;
   if(!state.nextVoucherNo) state.nextVoucherNo = 1;
   if(!state.voucherDefaults) state.voucherDefaults = {accountant:'', manager:''};
+  if(!state.vouchers) state.vouchers = [];
   if(!state.roomPayments) state.roomPayments = {};
   /* One-time migration: driver rooms used to track payment with a single
      ever-increasing "collected" counter (topped up by an "add payment"
@@ -2334,6 +2344,7 @@ function newVoucherDraft(prefill){
 // asynchronously after auth), so building the draft now would throw and take
 // down the whole app. It's created lazily the first time the page is opened.
 let voucherDraft = null;
+let voucherHistoryMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter) in the vouchers log below
 function openVoucherForExpense(txId){
   const t = state.transactions.find(x=>x.id===txId);
   if(!t) return;
@@ -2422,7 +2433,7 @@ function renderVoucher(main){
   card.innerHTML = `
     <header>
       <div class="vch-brand">
-        <img src="${LOGO_URI}" alt="شعار">
+        <div class="vch-logo-frame"><img src="${LOGO_URI}" alt="شعار"></div>
         <div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div>
       </div>
       <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
@@ -2518,15 +2529,48 @@ function renderVoucher(main){
 
   q('#vchNewBtn').addEventListener('click',()=>{ voucherDraft = newVoucherDraft(); render(); });
   q('#vchPrintBtn').addEventListener('click',()=>printVoucher());
+
+  renderVoucherHistory(main);
 }
-function buildVoucherCardHTML(no){
-  const d = voucherDraft;
+function renderVoucherHistory(main){
+  const filters = document.createElement('div');
+  filters.className = 'filters-row';
+  filters.style.marginTop = '22px';
+  filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">سجل السندات — الشهر:</label>
+    <input type="month" id="vchHistMonth" value="${voucherHistoryMonth||currentMonthKey()}" ${voucherHistoryMonth?'':'disabled'}>
+    <button class="btn-ghost btn-sm" id="vchHistAllBtn">${voucherHistoryMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>`;
+  main.appendChild(filters);
+  filters.querySelector('#vchHistMonth').addEventListener('change', e=>{ voucherHistoryMonth = e.target.value; render(); });
+  filters.querySelector('#vchHistAllBtn').addEventListener('click', ()=>{ voucherHistoryMonth = voucherHistoryMonth ? '' : currentMonthKey(); render(); });
+
+  const list = voucherHistoryMonth
+    ? state.vouchers.filter(v=>(v.date||'').slice(0,7)===voucherHistoryMonth)
+    : state.vouchers.slice();
+  list.sort((a,b)=> b.no - a.no);
+
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  const rows = list.map(v=>`<tr>
+      <td><b style="color:#b3261e;">${String(v.no).padStart(4,'0')}</b></td>
+      <td>${esc(v.date)}</td>
+      <td>${esc(v.to)||'—'}</td>
+      <td>${esc(v.unit)||'—'}</td>
+      <td><b>${esc(v.amount||'0')}${v.sub?'.'+esc(v.sub):''} ${VCH_CUR[v.cur||'SAR'].main}</b></td>
+      <td><button class="icon-btn" onclick="reprintVoucher(${v.no})">🖨 إعادة طباعة</button> <button class="icon-btn" onclick="loadVoucherFromHistory(${v.no})">✎ فتحه كمسودة</button></td>
+    </tr>`).join('');
+  panel.innerHTML = `<div class="panel-title">${voucherHistoryMonth?monthLabel(voucherHistoryMonth):'كل الأشهر'} (${list.length})</div>
+    <table><thead><tr><th>رقم السند</th><th>التاريخ</th><th>اصرفوا لـ</th><th>البند</th><th>المبلغ</th><th></th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="6" class="empty">لا توجد سندات مطبوعة في هذا النطاق</td></tr>'}</tbody></table>`;
+  main.appendChild(panel);
+}
+function buildVoucherCardHTML(no, data){
+  const d = data || voucherDraft;
   const c = VCH_CUR[d.cur]||VCH_CUR.SAR;
   const payLabel = d.method==='cash'?'نقداً':d.method==='cheque'?'شيك':'تحويل بنكي';
   return `
     <div class="vch-card">
       <header>
-        <div class="vch-brand"><img src="${LOGO_URI}" alt="شعار"><div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div></div>
+        <div class="vch-brand"><div class="vch-logo-frame"><img src="${LOGO_URI}" alt="شعار"></div><div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div></div>
         <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
         <div class="vch-meta">
           <label>رقم السند <span class="vch-no">${String(no).padStart(4,'0')}</span></label>
@@ -2562,12 +2606,24 @@ function buildVoucherCardHTML(no){
 // half, with a dashed cut-line between them) instead of a whole sheet per
 // voucher, to save paper — e.g. one copy for the file and one for the person
 // who received the payment.
-function buildVoucherPrintHTML(no){
-  const card = buildVoucherCardHTML(no);
+function buildVoucherPrintHTML(no, data){
+  const card = buildVoucherCardHTML(no, data);
   return `
   <div class="vch-print-page">${card}</div>
   <div class="vch-cut-line"></div>
   <div class="vch-print-page">${card}</div>`;
+}
+function openVoucherPrintWindow(no, data){
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>سند صرف رقم ${String(no).padStart(4,'0')} - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>${VCH_PRINT_STYLE}</style></head>
+    <body>${buildVoucherPrintHTML(no, data)}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
 }
 const VCH_PRINT_STYLE = `
   *{box-sizing:border-box;}
@@ -2586,17 +2642,25 @@ const VCH_PRINT_STYLE = `
   .vch-card{position:relative;padding:12px 16px;border-radius:0;height:100%;}
   .vch-card::before{content:"";position:absolute;inset:6px;border:1px solid #16181d;}
   .vch-card::after{content:"";position:absolute;inset:9px;border:1px solid #a8833a;opacity:.55;}
-  header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;position:relative;}
-  .vch-brand{display:flex;align-items:center;gap:8px;}
-  .vch-brand img{width:32px;height:32px;object-fit:contain;}
-  .vch-brand h1{font:700 15px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;}
-  .vch-brand small{display:block;color:#6b6f7a;font-size:9px;direction:ltr;text-align:right;}
+  header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;position:relative;
+    background:linear-gradient(180deg,#faf5e7 0%,#ffffff 100%);border-radius:7px;padding:7px 10px;margin-bottom:6px;
+    box-shadow:inset 0 -1.5px 0 #a8833a;}
+  .vch-brand{display:flex;align-items:center;gap:7px;}
+  .vch-logo-frame{width:34px;height:34px;border-radius:9px;background:#fff;border:1px solid #e6d7ac;
+    box-shadow:0 1px 4px rgba(168,131,58,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .vch-logo-frame img{width:25px;height:25px;object-fit:contain;}
+  .vch-brand h1{font:700 14px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;color:#16181d;}
+  .vch-brand small{display:block;color:#8a8f99;font-size:8px;direction:ltr;text-align:right;margin-top:1px;}
   .vch-title{text-align:center;}
-  .vch-title h2{font:700 19px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:3px 16px 5px;border-block:2px solid #16181d;}
+  .vch-title h2{font:700 19px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:4px 16px 5px;position:relative;color:#16181d;}
+  .vch-title h2::before,.vch-title h2::after{content:"";position:absolute;right:0;left:0;height:1.5px;
+    background:linear-gradient(90deg,transparent,#a8833a 18%,#a8833a 82%,transparent);}
+  .vch-title h2::before{top:0;}
+  .vch-title h2::after{bottom:0;}
   .vch-title span{display:block;font:600 8px sans-serif;letter-spacing:.25em;color:#a8833a;margin-top:3px;direction:ltr;}
   .vch-meta{display:grid;gap:3px;justify-self:end;}
   .vch-meta label{display:flex;align-items:center;gap:6px;font-size:10px;color:#6b6f7a;justify-content:flex-end;}
-  .vch-no{font:700 13px inherit;color:#b3261e;}
+  .vch-no{font:700 13px inherit;color:#b3261e;background:#fdeceb;padding:1px 7px;border-radius:4px;}
   .vch-amount-row{margin-top:8px;}
   .vch-amount{display:flex;border:1.5px solid #16181d;border-radius:5px;overflow:hidden;width:fit-content;}
   .vch-amount div{display:grid;text-align:center;}
@@ -2621,18 +2685,25 @@ const VCH_PRINT_STYLE = `
 `;
 async function printVoucher(){
   const no = state.nextVoucherNo;
-  const w = window.open('', '_blank');
-  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
-  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
-    <title>سند صرف رقم ${String(no).padStart(4,'0')} - ${esc(state.buildingName)}</title>
-    <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>${VCH_PRINT_STYLE}</style></head>
-    <body>${buildVoucherPrintHTML(no)}
-    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
-    </body></html>`);
-  w.document.close();
+  openVoucherPrintWindow(no, voucherDraft);
+  // Archive a snapshot of this voucher so it can be found later by date/month
+  // and reprinted — the same way الدفعات الشهرية lets you go back to past
+  // months — instead of the data only ever living in the on-screen draft.
+  if(!state.vouchers) state.vouchers = [];
+  state.vouchers.push(Object.assign({}, voucherDraft, {no, savedAt: new Date().toISOString()}));
   state.nextVoucherNo = no + 1;
   await saveState();
+  render();
+}
+function reprintVoucher(no){
+  const rec = state.vouchers.find(v=>v.no===no);
+  if(!rec){ alert('تعذّر العثور على هذا السند'); return; }
+  openVoucherPrintWindow(no, rec);
+}
+function loadVoucherFromHistory(no){
+  const rec = state.vouchers.find(v=>v.no===no);
+  if(!rec) return;
+  voucherDraft = Object.assign({}, rec);
   render();
 }
 
