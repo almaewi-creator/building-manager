@@ -1821,15 +1821,17 @@ function buildDefaultersReportHTML(opts){
       <thead><tr><th>الشقة</th>${showName?'<th>العضو</th>':''}${showPhone?'<th>الجوال</th>':''}${monthHeaders}<th>مستحقات سابقة</th><th>الإجمالي</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="${fixedColCount+2+months.length}">لا يوجد أعضاء متأخرون عن هذي الفترة 🎉</td></tr>`}</tbody>
     </table></div>
-    ${rowsData.length>0 ? `
-    <div class="stmt-chart-wrap stmt-chart-compact">
-      <div class="stmt-section-title" style="text-align:center;">الرسم البياني للمتأخرات حسب الشقة</div>
-      ${buildArrearsBarChartSVG(chartData, {compact:true})}
-      ${buildArrearsSeverityLegendHTML()}
+    <div class="stmt-tail-block">
+      ${rowsData.length>0 ? `
+      <div class="stmt-chart-wrap stmt-chart-compact">
+        <div class="stmt-section-title" style="text-align:center;">الرسم البياني للمتأخرات حسب الشقة</div>
+        ${buildArrearsBarChartSVG(chartData, {compact:true})}
+        ${buildArrearsSeverityLegendHTML()}
+      </div>
+      ` : ''}
+      <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
+      <div class="stmt-footer">المبلغ الظاهر في عمود كل شهر هو القيمة غير المسددة لذلك الشهر فقط، وعلامة ✓ تعني أن الشهر مسدد بالكامل. عمود "مستحقات سابقة" يشمل أي مبلغ متأخر من قبل بداية الفترة المختارة. هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
     </div>
-    ` : ''}
-    <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
-    <div class="stmt-footer">المبلغ الظاهر في عمود كل شهر هو القيمة غير المسددة لذلك الشهر فقط، وعلامة ✓ تعني أن الشهر مسدد بالكامل. عمود "مستحقات سابقة" يشمل أي مبلغ متأخر من قبل بداية الفترة المختارة. هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
   </div>`;
 }
 function printDefaultersReport(opts){
@@ -1839,9 +1841,18 @@ function printDefaultersReport(opts){
     <title>كشف المتأخرين - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <style>${STMT_STYLE}
-      @page{ size: landscape; }
+      /* Explicit A4 landscape (instead of a bare "landscape" with no size,
+         which left the paper dimensions to the browser's guess) so a long
+         list of defaulters flows cleanly across a real second A4 page
+         instead of being squeezed or breaking at an awkward spot. */
+      @page{ size: A4 landscape; margin: 10mm; }
       .stmt-page-wide{ max-width:100%; }
       .defaulters-detail-table th, .defaulters-detail-table td{ padding:5px 6px; font-size:10.5px; white-space:nowrap; }
+      /* Repeat the column headers on page 2+ and never slice a row (or the
+         chart/stamp/footer block) in half across the page break. */
+      .defaulters-detail-table thead{ display:table-header-group; }
+      .defaulters-detail-table tr{ page-break-inside:avoid; break-inside:avoid; }
+      .stmt-tail-block{ page-break-inside:avoid; break-inside:avoid; margin-top:4px; }
       .stmt-chart-wrap{ margin:8px 0 18px 0; }
       .stmt-chart-wrap svg{ display:block; width:100%; height:auto; max-width:640px; margin:0 auto; }
       @media print{ .stmt-chart-wrap{ page-break-inside:avoid; } }
