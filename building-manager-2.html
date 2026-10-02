@@ -2754,10 +2754,14 @@ function buildVoucherCardHTML(no, data){
 // who received the payment.
 function buildVoucherPrintHTML(no, data){
   const card = buildVoucherCardHTML(no, data);
+  // Each half gets its own centered watermark (instead of one watermark
+  // centered on the whole A4 sheet) so the dashed cut-line between the two
+  // copies never slices through the logo when the sheet is cut in half.
+  const wm = `<img src="${LOGO_URI}" class="vch-watermark" alt="">`;
   return `
-  <div class="vch-print-page">${card}</div>
+  <div class="vch-print-page">${wm}${card}</div>
   <div class="vch-cut-line"></div>
-  <div class="vch-print-page">${card}</div>`;
+  <div class="vch-print-page">${wm}${card}</div>`;
 }
 function openVoucherPrintWindow(no, data){
   const w = window.open('', '_blank');
@@ -2766,7 +2770,7 @@ function openVoucherPrintWindow(no, data){
     <title>سند صرف رقم ${String(no).padStart(4,'0')} - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
     <style>${VCH_PRINT_STYLE}</style></head>
-    <body>${printWatermarkHTML()}${buildVoucherPrintHTML(no, data)}
+    <body>${buildVoucherPrintHTML(no, data)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
   w.document.close();
@@ -2785,7 +2789,11 @@ const VCH_PRINT_STYLE = `
      page's worth of height each, so two = one full A4) to save paper —
      one copy for the file, one for whoever received the payment. */
   .vch-cut-line{position:absolute;top:148.5mm;left:0;right:0;height:0;border-top:1px dashed #b0b4bd;}
-  .vch-print-page{width:210mm;height:148.5mm;overflow:hidden;padding:8mm 12mm;page-break-after:avoid;page-break-inside:avoid;}
+  .vch-print-page{width:210mm;height:148.5mm;overflow:hidden;padding:8mm 12mm;page-break-after:avoid;page-break-inside:avoid;position:relative;}
+  /* Centered within each half on its own (not the whole A4 sheet), so
+     cutting the sheet in half along .vch-cut-line never cuts the logo itself. */
+  .vch-watermark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:34%;max-width:140px;opacity:.07;z-index:0;pointer-events:none;filter:grayscale(1);}
   .vch-card{position:relative;padding:12px 16px;border-radius:0;height:100%;}
   .vch-card::before{content:"";position:absolute;inset:6px;border:1px solid #16181d;}
   .vch-card::after{content:"";position:absolute;inset:9px;border:1px solid #a8833a;opacity:.55;}
@@ -2942,7 +2950,7 @@ function printAllVouchersInHistory(list){
     <title>طباعة كل السندات - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
     <style>${VCH_PRINT_STYLE}</style></head>
-    <body>${printWatermarkHTML()}${pages}
+    <body>${pages}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
   w.document.close();
