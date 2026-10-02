@@ -2273,6 +2273,22 @@ function renderFinance(main){
 
   const income = monthScoped.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = monthScoped.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+
+  // Audit: سند الصرف هو المرجع — أي مصروف ما له سند مرتبط يظهر هنا، سواء
+  // كان مُدخَلًا يدويًا قبل وجود ميزة السندات أو نُسي ربطه بسند.
+  if(!state.vouchers) state.vouchers = [];
+  const linkedTxIds = new Set(state.vouchers.map(v=>v.txId).filter(Boolean));
+  const expensesNoVoucher = state.transactions.filter(t=>t.type==='expense' && !linkedTxIds.has(t.id));
+  if(expensesNoVoucher.length>0){
+    const noVchTotal = expensesNoVoucher.reduce((s,t)=>s+Number(t.amount),0);
+    const banner = document.createElement('div');
+    banner.className = 'alert-banner amber';
+    banner.style.marginBottom = '14px';
+    banner.innerHTML = `<div class="alert-icon">🧾</div>
+      <div class="alert-text"><b>${expensesNoVoucher.length} ${expensesNoVoucher.length===1?'مصروف':'مصروفات'} بدون سند صرف مرتبط</b><span>بإجمالي ${fmt(noVchTotal)} ر.س — غالبًا أُدخلت يدويًا قبل ميزة السندات أو نُسي إنشاء سند لها. اضغط "🧾 سند صرف" بجانب أي منها بالأسفل لإنشاء سندها.</span></div>`;
+    main.appendChild(banner);
+  }
+
   const stats = document.createElement('div');
   stats.className='stats-row';
   stats.style.gridTemplateColumns='repeat(3,1fr)';
@@ -2302,7 +2318,8 @@ function renderFinance(main){
     .sort((a,b)=> (b.t.date||'').localeCompare(a.t.date||'') || (b.i-a.i))
     .map(x=>x.t);
   sorted.forEach(t=>{
-    rows += `<tr>
+    const noVoucher = t.type==='expense' && !linkedTxIds.has(t.id);
+    rows += `<tr${noVoucher?' style="background:#fff8ec;"':''}>
       <td>${t.date}</td>
       <td>${statusBadge(t.type==='income'?'مدفوعة':'غير مدفوعة').replace(t.type==='income'?'مدفوعة':'غير مدفوعة', t.type==='income'?'إيراد':'مصروف')}</td>
       <td>${t.category}</td>
@@ -2310,7 +2327,7 @@ function renderFinance(main){
       <td>${t.note||'—'}</td>
       <td><b style="color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'+':'-'}${fmt(t.amount)} ر.س</b></td>
       <td>${t.hasAttachment ? `<button class="icon-btn" onclick="viewAttachment('${t.id}')" title="${t.attachmentName||''}">📎 عرض الفاتورة</button>` : '<span style="color:var(--text-dim);font-size:12px;">—</span>'}</td>
-      <td>${t.type==='expense' ? `<button class="icon-btn" onclick="openVoucherForExpense('${t.id}')" title="إنشاء سند صرف بهذه البيانات">🧾 سند صرف</button> ` : ''}<button class="icon-btn" onclick="openTxModal('${t.id}')">تعديل</button> <button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
+      <td>${noVoucher ? '<span class="badge amber" style="margin-left:4px;" title="لا يوجد سند صرف مرتبط بهذا المصروف">⚠ بدون سند</span> ' : ''}${t.type==='expense' ? `<button class="icon-btn" onclick="openVoucherForExpense('${t.id}')" title="إنشاء سند صرف بهذه البيانات">🧾 سند صرف</button> ` : ''}<button class="icon-btn" onclick="openTxModal('${t.id}')">تعديل</button> <button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
     </tr>`;
   });
   const scopeLabel = (financeMonth?monthLabel(financeMonth):'كل الأشهر') + (financeFilter==='all'?'':financeFilter==='income'?' — إيرادات فقط':' — مصروفات فقط');
