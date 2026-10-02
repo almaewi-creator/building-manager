@@ -2556,10 +2556,12 @@ function renderVoucherHistory(main){
   filters.style.marginTop = '22px';
   filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">سجل السندات — الشهر:</label>
     <input type="month" id="vchHistMonth" value="${voucherHistoryMonth||currentMonthKey()}" ${voucherHistoryMonth?'':'disabled'}>
-    <button class="btn-ghost btn-sm" id="vchHistAllBtn">${voucherHistoryMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>`;
+    <button class="btn-ghost btn-sm" id="vchHistAllBtn">${voucherHistoryMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
+    <button class="btn-ghost btn-sm" id="vchRenumberBtn" title="يرتب كل السندات حسب التاريخ ويعيد ترقيمها 1, 2, 3...">🔢 ترقيم تلقائي حسب التاريخ</button>`;
   main.appendChild(filters);
   filters.querySelector('#vchHistMonth').addEventListener('change', e=>{ voucherHistoryMonth = e.target.value; render(); });
   filters.querySelector('#vchHistAllBtn').addEventListener('click', ()=>{ voucherHistoryMonth = voucherHistoryMonth ? '' : currentMonthKey(); render(); });
+  filters.querySelector('#vchRenumberBtn').addEventListener('click', renumberVouchersByDate);
 
   const list = voucherHistoryMonth
     ? state.vouchers.filter(v=>(v.date||'').slice(0,7)===voucherHistoryMonth)
@@ -2735,6 +2737,16 @@ async function deleteVoucherHistory(id){
   state.vouchers = state.vouchers.filter(v=>v.id!==id);
   await saveState();
   render();
+}
+async function renumberVouchersByDate(){
+  if(state.vouchers.length===0){ alert('لا توجد سندات في السجل بعد'); return; }
+  if(!confirm('سيُعاد ترتيب كل السندات (من كل الأشهر) حسب التاريخ من الأقدم للأحدث، وتُرقَّم تلقائيًا ١، ٢، ٣... بالتسلسل. ملاحظة: إذا كانت بعض السندات مطبوعة ورقيًا بأرقامها الحالية، رقمها المحفوظ هنا سيتغيّر وما بيطابق الورقة بعدها. تكملين؟')) return;
+  const sorted = state.vouchers.slice().sort((a,b)=> (a.date||'').localeCompare(b.date||'') || (a.savedAt||'').localeCompare(b.savedAt||''));
+  sorted.forEach((v,i)=>{ v.no = i+1; });
+  state.nextVoucherNo = sorted.length+1;
+  await saveState();
+  render();
+  alert('تم — السندات مرتبة الآن حسب التاريخ من سبتمبر إلى أكتوبر (أو أي أشهر موجودة)، بدءًا من رقم 1.');
 }
 
 function openTxModal(id){
