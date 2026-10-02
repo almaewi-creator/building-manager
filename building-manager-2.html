@@ -314,7 +314,7 @@
   .vch-two{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;}
   .vch-pay{display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
   .vch-pay label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;}
-  .vch-sign{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:30px;}
+  .vch-sign{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px;}
   .vch-sign div{text-align:center;}
   .vch-sign b{display:block;font:700 13px "El Messiri","IBM Plex Sans Arabic",sans-serif;margin-bottom:28px;}
   .vch-sign input{text-align:center;border-bottom:1px solid #16181d;font-size:13px;}
@@ -2326,7 +2326,6 @@ function newVoucherDraft(prefill){
   return Object.assign({
     to:'', amount:'', sub:'', cur:'SAR', for:'', method:'cash', ref:'', bank:'',
     unit:'', note:'', s1:'',
-    s2:(state && state.voucherDefaults && state.voucherDefaults.accountant)||'',
     s3:(state && state.voucherDefaults && state.voucherDefaults.manager)||'',
     date: todayISODate()
   }, prefill||{});
@@ -2455,33 +2454,30 @@ function renderVoucher(main){
         <div class="vch-f"><span>على بنك</span><input class="vch-grow" id="vch-bank" value="${esc(d.bank)}"></div>
       </div>
       <div class="vch-two">
-        <div class="vch-f"><span>رقم الوحدة / الشقة <em>(اختياري)</em></span><input class="vch-grow" id="vch-unit" value="${esc(d.unit)}"></div>
+        <div class="vch-f"><span>البند <em>(اختياري)</em></span><input class="vch-grow" id="vch-unit" placeholder="مثال: صيانة، كهرباء، نظافة" value="${esc(d.unit)}"></div>
         <div class="vch-f"><span>ملاحظات</span><input class="vch-grow" id="vch-note" value="${esc(d.note)}"></div>
       </div>
     </div>
 
     <div class="vch-sign">
       <div><b>المستلم</b><input id="vch-s1" placeholder="الاسم" value="${esc(d.s1)}"><small>التوقيع</small></div>
-      <div><b>المحاسب</b><input id="vch-s2" placeholder="الاسم" value="${esc(d.s2)}"><small>التوقيع</small></div>
       <div><b>المدير</b><input id="vch-s3" placeholder="الاسم" value="${esc(d.s3)}"><small>الاعتماد</small></div>
       <div><b>الختم</b><div class="vch-stamp">مكان الختم</div></div>
     </div>
 
     <div class="vch-footer">
-      <span>${esc(state.buildingName)} · هاتف 2373602200</span>
+      <span>${esc(state.buildingName)}</span>
       <span></span>
     </div>
   `;
   main.appendChild(card);
 
   // live field bindings — update the in-memory draft without a full page re-render
-  const q = sel => card.querySelector(sel);
+  const q = sel => main.querySelector(sel);
   const bind = (sel, key, onChange) => { const el=q(sel); el.addEventListener('input',()=>{ d[key]=el.value; if(onChange) onChange(); }); };
   bind('#vch-to','to'); bind('#vch-for','for'); bind('#vch-unit','unit'); bind('#vch-note','note');
   bind('#vch-ref','ref'); bind('#vch-bank','bank');
   bind('#vch-s1','s1');
-  q('#vch-s2').addEventListener('input',()=>{ d.s2=q('#vch-s2').value; });
-  q('#vch-s2').addEventListener('change',async ()=>{ if(!state.voucherDefaults) state.voucherDefaults={}; state.voucherDefaults.accountant=d.s2; await saveState(); });
   q('#vch-s3').addEventListener('input',()=>{ d.s3=q('#vch-s3').value; });
   q('#vch-s3').addEventListener('change',async ()=>{ if(!state.voucherDefaults) state.voucherDefaults={}; state.voucherDefaults.manager=d.s3; await saveState(); });
 
@@ -2534,17 +2530,16 @@ function buildVoucherPrintHTML(no){
         <div class="vch-f"><span>وذلك عن</span><div class="vch-grow vch-val">${esc(d.for)||'—'}</div></div>
         <div class="vch-f vch-pay"><span>طريقة الدفع</span><b>${payLabel}</b>${d.method!=='cash'?` — ${d.method==='cheque'?'رقم الشيك':'رقم الحوالة'}: ${esc(d.ref)||'—'} — على بنك: ${esc(d.bank)||'—'}`:''}</div>
         <div class="vch-two">
-          <div class="vch-f"><span>رقم الوحدة / الشقة</span><div class="vch-grow vch-val">${esc(d.unit)||'—'}</div></div>
+          <div class="vch-f"><span>البند</span><div class="vch-grow vch-val">${esc(d.unit)||'—'}</div></div>
           <div class="vch-f"><span>ملاحظات</span><div class="vch-grow vch-val">${esc(d.note)||'—'}</div></div>
         </div>
       </div>
       <div class="vch-sign">
         <div><b>المستلم</b><div class="vch-sign-line">${esc(d.s1)||''}</div><small>التوقيع</small></div>
-        <div><b>المحاسب</b><div class="vch-sign-line">${esc(d.s2)||''}</div><small>التوقيع</small></div>
         <div><b>المدير</b><div class="vch-sign-line">${esc(d.s3)||''}</div><small>الاعتماد</small></div>
         <div><b>الختم</b><img src="${STAMP_URI}" class="vch-stamp-img" alt="ختم"></div>
       </div>
-      <div class="vch-footer"><span>${esc(state.buildingName)} · هاتف 2373602200</span><span>صدر بتاريخ ${new Date().toLocaleString('ar-SA-u-nu-latn',{dateStyle:'medium',timeStyle:'short'})}</span></div>
+      <div class="vch-footer"><span>${esc(state.buildingName)}</span><span>صدر بتاريخ ${new Date().toLocaleString('ar-SA-u-nu-latn',{dateStyle:'medium',timeStyle:'short'})}</span></div>
     </div>
   </div>`;
 }
@@ -2578,7 +2573,7 @@ const VCH_PRINT_STYLE = `
   .vch-val{border-bottom:1px dotted #6b6f7a;padding:4px 2px;font-weight:500;}
   .vch-words{flex:1;padding:5px 10px;background:#f6f0e3;border-bottom:1px solid #a8833a;font-weight:600;}
   .vch-two{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;}
-  .vch-sign{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:30px;}
+  .vch-sign{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px;}
   .vch-sign div{text-align:center;}
   .vch-sign b{display:block;font:700 13px "El Messiri","IBM Plex Sans Arabic",sans-serif;margin-bottom:10px;}
   .vch-sign-line{border-bottom:1px solid #16181d;min-height:22px;font-size:13px;padding-bottom:4px;}
