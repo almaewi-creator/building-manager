@@ -2510,12 +2510,11 @@ function renderVoucher(main){
   q('#vchNewBtn').addEventListener('click',()=>{ voucherDraft = newVoucherDraft(); render(); });
   q('#vchPrintBtn').addEventListener('click',()=>printVoucher());
 }
-function buildVoucherPrintHTML(no){
+function buildVoucherCardHTML(no){
   const d = voucherDraft;
   const c = VCH_CUR[d.cur]||VCH_CUR.SAR;
   const payLabel = d.method==='cash'?'نقداً':d.method==='cheque'?'شيك':'تحويل بنكي';
   return `
-  <div class="vch-print-page">
     <div class="vch-card">
       <header>
         <div class="vch-brand"><img src="${LOGO_URI}" alt="شعار"><div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div></div>
@@ -2548,19 +2547,32 @@ function buildVoucherPrintHTML(no){
         <div><b>الختم</b><img src="${STAMP_URI}" class="vch-stamp-img" alt="ختم"></div>
       </div>
       <div class="vch-footer"><span>${esc(state.buildingName)}</span><span>صدر بتاريخ ${new Date().toLocaleString('ar-SA-u-nu-latn',{dateStyle:'medium',timeStyle:'short'})}</span></div>
-    </div>
-  </div>`;
+    </div>`;
+}
+// Two copies of the same voucher stacked on one A4 sheet (top half + bottom
+// half, with a dashed cut-line between them) instead of a whole sheet per
+// voucher, to save paper — e.g. one copy for the file and one for the person
+// who received the payment.
+function buildVoucherPrintHTML(no){
+  const card = buildVoucherCardHTML(no);
+  return `
+  <div class="vch-print-page">${card}</div>
+  <div class="vch-cut-line"></div>
+  <div class="vch-print-page">${card}</div>`;
 }
 const VCH_PRINT_STYLE = `
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
-  body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;background:#fff;color:#16181d;}
+  body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;background:#fff;color:#16181d;position:relative;}
   /* Many phone/tablet print dialogs ignore @page size:A5 and always use the
      system's A4 paper, which pushed the lower half of the voucher onto a
      second page. Fixing the page to A4 and sizing this box to exactly half
      of it (210mm × 148.5mm — the actual dimensions of A5 landscape) keeps
      the whole voucher on the top half of one A4 sheet no matter what paper
-     size the print dialog reports. */
+     size the print dialog reports. Two copies are stacked per sheet (one
+     page's worth of height each, so two = one full A4) to save paper —
+     one copy for the file, one for whoever received the payment. */
+  .vch-cut-line{position:absolute;top:148.5mm;left:0;right:0;height:0;border-top:1px dashed #b0b4bd;}
   .vch-print-page{width:210mm;height:148.5mm;overflow:hidden;padding:8mm 12mm;page-break-after:avoid;page-break-inside:avoid;}
   .vch-card{position:relative;padding:12px 16px;border-radius:0;height:100%;}
   .vch-card::before{content:"";position:absolute;inset:6px;border:1px solid #16181d;}
