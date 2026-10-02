@@ -303,6 +303,9 @@
   .vch-meta label{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b6f7a;justify-content:flex-end;}
   .vch-meta input{width:130px;text-align:center;}
   .vch-no{font:700 19px inherit;color:#b3261e;font-variant-numeric:tabular-nums;background:#fdeceb;padding:2px 10px;border-radius:6px;}
+  /* The voucher number is directly editable in the header (input#vch-no-input) so the person has full control over it, not just the "next number" counter. */
+  input.vch-no{border:1px solid #f3cdc9;width:70px;text-align:center;}
+  input.vch-no:focus-visible{outline:2px solid #a8833a;outline-offset:1px;}
   .vch-card input,.vch-card select,.vch-card textarea{font:500 15px "IBM Plex Sans Arabic",sans-serif;color:#16181d;background:transparent;border:0;border-bottom:1px dotted #6b6f7a;padding:4px 2px;border-radius:0;width:100%;}
   .vch-card input:focus-visible,.vch-card select:focus-visible{outline:2px solid #a8833a;outline-offset:2px;}
   .vch-amount-row{display:flex;gap:14px;align-items:stretch;margin-top:20px;flex-wrap:wrap;}
@@ -541,6 +544,10 @@ function migrateState(){
   if(!state.nextVoucherNo) state.nextVoucherNo = 1;
   if(!state.voucherDefaults) state.voucherDefaults = {accountant:'', manager:''};
   if(!state.vouchers) state.vouchers = [];
+  // Defensive: give any legacy voucher record (saved before per-record ids
+  // existed) a unique id so it can be reprinted/edited/deleted individually,
+  // even if it shares the same السند number with another record.
+  state.vouchers.forEach((v,i)=>{ if(!v.id) v.id = 'vh'+v.no+'_legacy'+i; });
   if(!state.roomPayments) state.roomPayments = {};
   /* One-time migration: driver rooms used to track payment with a single
      ever-increasing "collected" counter (topped up by an "add payment"
@@ -2411,25 +2418,15 @@ function vchHijri(iso){
 }
 function renderVoucher(main){
   if(!voucherDraft) voucherDraft = newVoucherDraft();
-  topbar(main, state.buildingName, 'سند صرف', 'نموذج سند صرف رسمي — عبّي البيانات ثم اطبعي، ورقم السند يتزايد تلقائياً مع كل طباعة ويُحفظ على السحابة.');
+  topbar(main, state.buildingName, 'سند صرف', 'نموذج سند صرف رسمي — عبّي البيانات ثم اطبعي. رقم السند بجانب العنوان قابل للتعديل مباشرة، وأنت المتحكم فيه بالكامل.');
 
   const toolbar = document.createElement('div');
   toolbar.className = 'vch-toolbar';
   toolbar.innerHTML = `
     <button class="btn" id="vchPrintBtn">🖨 طباعة السند</button>
     <button class="btn-ghost" id="vchNewBtn">↺ سند جديد (مسح الحقول)</button>
-    <div class="vch-no-box">السند التالي رقم <b>${String(state.nextVoucherNo).padStart(4,'0')}</b> <button class="icon-btn" id="vchEditNoBtn" title="تعديل رقم السند التالي">✎ تعديل</button></div>
   `;
   main.appendChild(toolbar);
-  toolbar.querySelector('#vchEditNoBtn').addEventListener('click', async ()=>{
-    const v = prompt('رقم السند التالي (مثال: 1 يعني أول طباعة تطلع برقم 0001):', String(state.nextVoucherNo));
-    if(v===null) return;
-    const n = parseInt(v,10);
-    if(!n || n<1){ alert('أدخل رقمًا صحيحًا أكبر من صفر'); return; }
-    state.nextVoucherNo = n;
-    await saveState();
-    render();
-  });
 
   const d = voucherDraft;
   const card = document.createElement('div');
@@ -2442,7 +2439,7 @@ function renderVoucher(main){
       </div>
       <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
       <div class="vch-meta">
-        <label>رقم السند <span class="vch-no">${String(state.nextVoucherNo).padStart(4,'0')}</span></label>
+        <label>رقم السند <input type="number" min="1" id="vch-no-input" class="vch-no" value="${state.nextVoucherNo}"></label>
         <label>التاريخ <input type="date" id="vch-date" value="${esc(d.date)}"></label>
         <label>الموافق <span id="vch-hijri" style="min-width:130px;text-align:center;font-weight:600;">${vchHijri(d.date)}</span></label>
       </div>
@@ -2531,8 +2528,25 @@ function renderVoucher(main){
     q('#vch-refLbl').textContent = d.method==='cheque' ? 'رقم الشيك' : 'رقم الحوالة';
   }));
 
+  q('#vch-no-input').addEventListener('input',()=>{
+    const n = parseInt(q('#vch-no-input').value,10);
+    if(n && n>=1) state.nextVoucherNo = n;
+  });
+  q('#vch-no-input').addEventListener('change', async ()=>{
+    const n = parseInt(q('#vch-no-input').value,10);
+    if(!n || n<1){ q('#vch-no-input').value = state.nextVoucherNo; return; }
+    state.nextVoucherNo = n;
+    await saveState();
+  });
+
   q('#vchNewBtn').addEventListener('click',()=>{ voucherDraft = newVoucherDraft(); render(); });
-  q('#vchPrintBtn').addEventListener('click',()=>printVoucher());
+  q('#vchPrintBtn').addEventListener('click',()=>{
+    // Make sure whatever number the person typed (even if they haven't
+    // tabbed/blurred out of the field yet) is what actually gets used.
+    const n = parseInt(q('#vch-no-input').value,10);
+    if(n && n>=1) state.nextVoucherNo = n;
+    printVoucher();
+  });
 
   renderVoucherHistory(main);
 }
@@ -2560,7 +2574,7 @@ function renderVoucherHistory(main){
       <td>${esc(v.to)||'—'}</td>
       <td>${esc(v.unit)||'—'}</td>
       <td><b>${esc(v.amount||'0')}${v.sub?'.'+esc(v.sub):''} ${VCH_CUR[v.cur||'SAR'].main}</b></td>
-      <td><button class="icon-btn" onclick="reprintVoucher(${v.no})">🖨 إعادة طباعة</button> <button class="icon-btn" onclick="loadVoucherFromHistory(${v.no})">✎ فتحه كمسودة</button></td>
+      <td><button class="icon-btn" onclick="reprintVoucher('${v.id}')">🖨 إعادة طباعة</button> <button class="icon-btn" onclick="loadVoucherFromHistory('${v.id}')">✎ فتحه كمسودة</button> <button class="icon-btn" onclick="deleteVoucherHistory('${v.id}')">🗑 حذف</button></td>
     </tr>`).join('');
   panel.innerHTML = `<div class="panel-title">${voucherHistoryMonth?monthLabel(voucherHistoryMonth):'كل الأشهر'} (${list.length})</div>
     <table><thead><tr><th>رقم السند</th><th>التاريخ</th><th>اصرفوا لـ</th><th>البند</th><th>المبلغ</th><th></th></tr></thead>
@@ -2693,21 +2707,33 @@ async function printVoucher(){
   // Archive a snapshot of this voucher so it can be found later by date/month
   // and reprinted — the same way الدفعات الشهرية lets you go back to past
   // months — instead of the data only ever living in the on-screen draft.
+  // Each record gets its own unique id (separate from the السند number,
+  // which the person can freely reuse/override) so a specific record can be
+  // reprinted, reopened or deleted even if two records share the same no.
   if(!state.vouchers) state.vouchers = [];
-  state.vouchers.push(Object.assign({}, voucherDraft, {no, savedAt: new Date().toISOString()}));
+  const id = 'vh'+Date.now()+Math.random().toString(36).slice(2,7);
+  state.vouchers.push(Object.assign({}, voucherDraft, {no, id, savedAt: new Date().toISOString()}));
   state.nextVoucherNo = no + 1;
   await saveState();
   render();
 }
-function reprintVoucher(no){
-  const rec = state.vouchers.find(v=>v.no===no);
+function reprintVoucher(id){
+  const rec = state.vouchers.find(v=>v.id===id);
   if(!rec){ alert('تعذّر العثور على هذا السند'); return; }
-  openVoucherPrintWindow(no, rec);
+  openVoucherPrintWindow(rec.no, rec);
 }
-function loadVoucherFromHistory(no){
-  const rec = state.vouchers.find(v=>v.no===no);
+function loadVoucherFromHistory(id){
+  const rec = state.vouchers.find(v=>v.id===id);
   if(!rec) return;
   voucherDraft = Object.assign({}, rec);
+  render();
+}
+async function deleteVoucherHistory(id){
+  const rec = state.vouchers.find(v=>v.id===id);
+  if(!rec) return;
+  if(!confirm('حذف السند رقم '+String(rec.no).padStart(4,'0')+' من السجل؟ (هذا يحذف السجل فقط، لا يغيّر رقم السند التالي)')) return;
+  state.vouchers = state.vouchers.filter(v=>v.id!==id);
+  await saveState();
   render();
 }
 
