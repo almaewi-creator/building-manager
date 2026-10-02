@@ -2403,9 +2403,18 @@ function renderVoucher(main){
   toolbar.innerHTML = `
     <button class="btn" id="vchPrintBtn">🖨 طباعة السند</button>
     <button class="btn-ghost" id="vchNewBtn">↺ سند جديد (مسح الحقول)</button>
-    <div class="vch-no-box">السند التالي رقم <b>${String(state.nextVoucherNo).padStart(4,'0')}</b></div>
+    <div class="vch-no-box">السند التالي رقم <b>${String(state.nextVoucherNo).padStart(4,'0')}</b> <button class="icon-btn" id="vchEditNoBtn" title="تعديل رقم السند التالي">✎ تعديل</button></div>
   `;
   main.appendChild(toolbar);
+  toolbar.querySelector('#vchEditNoBtn').addEventListener('click', async ()=>{
+    const v = prompt('رقم السند التالي (مثال: 1 يعني أول طباعة تطلع برقم 0001):', String(state.nextVoucherNo));
+    if(v===null) return;
+    const n = parseInt(v,10);
+    if(!n || n<1){ alert('أدخل رقمًا صحيحًا أكبر من صفر'); return; }
+    state.nextVoucherNo = n;
+    await saveState();
+    render();
+  });
 
   const d = voucherDraft;
   const card = document.createElement('div');
