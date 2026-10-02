@@ -2326,12 +2326,15 @@ function newVoucherDraft(prefill){
   return Object.assign({
     to:'', amount:'', sub:'', cur:'SAR', for:'', method:'cash', ref:'', bank:'',
     unit:'', note:'', s1:'',
-    s2:(state.voucherDefaults&&state.voucherDefaults.accountant)||'',
-    s3:(state.voucherDefaults&&state.voucherDefaults.manager)||'',
+    s2:(state && state.voucherDefaults && state.voucherDefaults.accountant)||'',
+    s3:(state && state.voucherDefaults && state.voucherDefaults.manager)||'',
     date: todayISODate()
   }, prefill||{});
 }
-let voucherDraft = newVoucherDraft();
+// Not initialized here: `state` is still null at script-parse time (it loads
+// asynchronously after auth), so building the draft now would throw and take
+// down the whole app. It's created lazily the first time the page is opened.
+let voucherDraft = null;
 function openVoucherForExpense(txId){
   const t = state.transactions.find(x=>x.id===txId);
   if(!t) return;
@@ -2393,6 +2396,7 @@ function vchHijri(iso){
   }catch(e){ return ''; }
 }
 function renderVoucher(main){
+  if(!voucherDraft) voucherDraft = newVoucherDraft();
   topbar(main, state.buildingName, 'سند صرف', 'نموذج سند صرف رسمي — عبّي البيانات ثم اطبعي، ورقم السند يتزايد تلقائياً مع كل طباعة ويُحفظ على السحابة.');
 
   const toolbar = document.createElement('div');
