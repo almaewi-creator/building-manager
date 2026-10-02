@@ -271,6 +271,63 @@
     .main{padding:18px 14px;}
     .alert-banner{flex-wrap:wrap;}
   }
+
+  /* ---------------- سند صرف (payment voucher) ---------------- */
+  .vch-wrap{max-width:900px;margin:0 auto;}
+  .vch-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;}
+  .vch-toolbar .hint{color:var(--text-dim);font-size:12.5px;margin-inline-start:auto;}
+  .vch-no-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:8px;}
+  .vch-no-box b{color:#b3261e;font-size:18px;font-variant-numeric:tabular-nums;}
+  .vch-card{max-width:900px;margin:0 auto;background:#fff;color:#16181d;position:relative;padding:28px 34px 30px;
+    border-radius:14px;box-shadow:0 1px 2px rgba(22,24,29,.08),0 12px 32px rgba(22,24,29,.10);overflow:hidden;
+    font-family:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;}
+  .vch-card::before{content:"";position:absolute;inset:10px;border:1px solid #16181d;pointer-events:none;border-radius:6px;}
+  .vch-card::after{content:"";position:absolute;inset:14px;border:1px solid #a8833a;opacity:.55;pointer-events:none;border-radius:4px;}
+  .vch-card header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;position:relative;}
+  .vch-brand{display:flex;align-items:center;gap:12px;}
+  .vch-brand img{width:48px;height:48px;object-fit:contain;border-radius:8px;}
+  .vch-brand h1{font:700 20px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;}
+  .vch-brand small{display:block;color:#6b6f7a;font-size:12px;direction:ltr;text-align:right;}
+  .vch-title{text-align:center;}
+  .vch-title h2{font:700 28px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:6px 26px 8px;border-block:2px solid #16181d;}
+  .vch-title span{display:block;font:600 11px "IBM Plex Sans Arabic",sans-serif;letter-spacing:.3em;color:#a8833a;margin-top:6px;direction:ltr;}
+  .vch-meta{display:grid;gap:6px;justify-self:end;min-width:0;}
+  .vch-meta label{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b6f7a;justify-content:flex-end;}
+  .vch-meta input{width:130px;text-align:center;}
+  .vch-no{font:700 18px inherit;color:#b3261e;font-variant-numeric:tabular-nums;}
+  .vch-card input,.vch-card select,.vch-card textarea{font:500 15px "IBM Plex Sans Arabic",sans-serif;color:#16181d;background:transparent;border:0;border-bottom:1px dotted #6b6f7a;padding:4px 2px;border-radius:0;width:100%;}
+  .vch-card input:focus-visible,.vch-card select:focus-visible{outline:2px solid #a8833a;outline-offset:2px;}
+  .vch-amount-row{display:flex;gap:14px;align-items:stretch;margin-top:20px;flex-wrap:wrap;}
+  .vch-amount{display:flex;border:1.5px solid #16181d;border-radius:6px;overflow:hidden;}
+  .vch-amount div{display:grid;text-align:center;}
+  .vch-amount b{font:600 11px "IBM Plex Sans Arabic",sans-serif;background:#16181d;color:#fff;padding:4px 10px;}
+  .vch-amount input{border:0;width:120px;text-align:center;font:700 18px "IBM Plex Sans Arabic",sans-serif;padding:6px;background:#f6f0e3;}
+  .vch-amount .vch-sub input{width:70px;}
+  .vch-amount .vch-sub{border-inline-start:1.5px solid #16181d;}
+  .vch-curr{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b6f7a;}
+  .vch-fields{display:grid;gap:14px;margin-top:20px;}
+  .vch-f{display:flex;align-items:flex-end;gap:10px;min-width:0;}
+  .vch-f>span{white-space:nowrap;font-weight:600;font-size:14px;}
+  .vch-f>span em{font-style:normal;color:#6b6f7a;font-weight:400;font-size:12px;margin-inline-start:4px;}
+  .vch-grow{flex:1;min-width:0;}
+  .vch-words{flex:1;min-width:0;padding:5px 10px;background:#f6f0e3;border-bottom:1px solid #a8833a;font-weight:600;min-height:32px;line-height:1.6;}
+  .vch-two{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;}
+  .vch-pay{display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
+  .vch-pay label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;}
+  .vch-sign{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:30px;}
+  .vch-sign div{text-align:center;}
+  .vch-sign b{display:block;font:700 13px "El Messiri","IBM Plex Sans Arabic",sans-serif;margin-bottom:28px;}
+  .vch-sign input{text-align:center;border-bottom:1px solid #16181d;font-size:13px;}
+  .vch-sign small{display:block;color:#6b6f7a;font-size:11px;margin-top:4px;}
+  .vch-stamp{border:1.5px dashed #c9ccd4;border-radius:50%;width:72px;height:72px;margin:-22px auto 0;display:grid;place-items:center;color:#6b6f7a;font-size:10px;}
+  .vch-footer{margin-top:20px;padding-top:10px;border-top:1px solid #c9ccd4;display:flex;justify-content:space-between;color:#6b6f7a;font-size:11px;gap:8px;flex-wrap:wrap;}
+  @media(max-width:700px){
+    .vch-card{padding:22px 18px;}
+    .vch-card header{grid-template-columns:1fr;}
+    .vch-brand,.vch-meta{justify-self:center;}
+    .vch-meta label{justify-content:center;}
+    .vch-two,.vch-sign{grid-template-columns:1fr 1fr;}
+  }
 </style>
 </head>
 <body>
@@ -324,6 +381,7 @@ function defaultState(){
     driverRooms: [1,2,3,4,5].map(n=>({id:'dr'+n, number:n, tenant:'', monthlyRent:0, collected:0, startMonth:''})),
     openingBalance: 0,
     nextVoucherNo: 1,
+    voucherDefaults: {accountant:'', manager:''},
     nextIds: {owner:31, unit:31, tx:1, eq:1, mnt:1}
   };
 }
@@ -472,6 +530,7 @@ function migrateState(){
   if(state.billingModeIgnoreStart===undefined) state.billingModeIgnoreStart = false;
   if(state.openingBalance===undefined) state.openingBalance = 0;
   if(!state.nextVoucherNo) state.nextVoucherNo = 1;
+  if(!state.voucherDefaults) state.voucherDefaults = {accountant:'', manager:''};
   if(!state.roomPayments) state.roomPayments = {};
   /* One-time migration: driver rooms used to track payment with a single
      ever-increasing "collected" counter (topped up by an "add payment"
@@ -2194,7 +2253,7 @@ function renderFinance(main){
       <td>${t.note||'—'}</td>
       <td><b style="color:${t.type==='income'?'var(--green)':'var(--red)'}">${t.type==='income'?'+':'-'}${fmt(t.amount)} ر.س</b></td>
       <td>${t.hasAttachment ? `<button class="icon-btn" onclick="viewAttachment('${t.id}')" title="${t.attachmentName||''}">📎 عرض الفاتورة</button>` : '<span style="color:var(--text-dim);font-size:12px;">—</span>'}</td>
-      <td><button class="icon-btn" onclick="openTxModal('${t.id}')">تعديل</button> <button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
+      <td>${t.type==='expense' ? `<button class="icon-btn" onclick="openVoucherForExpense('${t.id}')" title="إنشاء سند صرف بهذه البيانات">🧾 سند صرف</button> ` : ''}<button class="icon-btn" onclick="openTxModal('${t.id}')">تعديل</button> <button class="icon-btn" onclick="deleteTx('${t.id}')">حذف</button></td>
     </tr>`;
   });
   const scopeLabel = (financeMonth?monthLabel(financeMonth):'كل الأشهر') + (financeFilter==='all'?'':financeFilter==='income'?' — إيرادات فقط':' — مصروفات فقط');
@@ -2255,6 +2314,292 @@ function printFinanceReport(){
     </body></html>`);
   w.document.close();
 }
+
+/* ---------------- سند صرف (Payment Voucher) ----------------
+   One unified place for the "سند صرف" design: a live editable form on
+   the "سند صرف" page, backed by a cloud-synced voucher number
+   (state.nextVoucherNo) instead of the old standalone file's
+   localStorage-only counter, plus a one-click "سند صرف" shortcut from
+   any expense row on the finance page that pre-fills the form. */
+function todayISODate(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+function newVoucherDraft(prefill){
+  return Object.assign({
+    to:'', amount:'', sub:'', cur:'SAR', for:'', method:'cash', ref:'', bank:'',
+    unit:'', note:'', s1:'',
+    s2:(state.voucherDefaults&&state.voucherDefaults.accountant)||'',
+    s3:(state.voucherDefaults&&state.voucherDefaults.manager)||'',
+    date: todayISODate()
+  }, prefill||{});
+}
+let voucherDraft = newVoucherDraft();
+function openVoucherForExpense(txId){
+  const t = state.transactions.find(x=>x.id===txId);
+  if(!t) return;
+  const amt = Number(t.amount)||0;
+  voucherDraft = newVoucherDraft({
+    amount: String(Math.trunc(amt)),
+    sub: Math.round((amt%1)*100) ? String(Math.round((amt%1)*100)).padStart(2,'0') : '',
+    for: t.category + (t.note ? ' — '+t.note : ''),
+    method: t.method==='تحويل' ? 'transfer' : 'cash',
+    date: t.date || todayISODate()
+  });
+  currentView = 'voucher'; render();
+}
+const VCH_ONES=['','واحد','اثنان','ثلاثة','أربعة','خمسة','ستة','سبعة','ثمانية','تسعة','عشرة','أحد عشر','اثنا عشر','ثلاثة عشر','أربعة عشر','خمسة عشر','ستة عشر','سبعة عشر','ثمانية عشر','تسعة عشر'];
+const VCH_TENS=['','','عشرون','ثلاثون','أربعون','خمسون','ستون','سبعون','ثمانون','تسعون'];
+const VCH_HUND=['','مائة','مائتان','ثلاثمائة','أربعمائة','خمسمائة','ستمائة','سبعمائة','ثمانمائة','تسعمائة'];
+function vchBelow1000(n){
+  const h=Math.floor(n/100), r=n%100, p=[];
+  if(h) p.push(VCH_HUND[h]);
+  if(r){ if(r<20) p.push(VCH_ONES[r]); else { const u=r%10,t=Math.floor(r/10); p.push(u? VCH_ONES[u]+' و'+VCH_TENS[t] : VCH_TENS[t]); } }
+  return p.join(' و');
+}
+const VCH_SCALES=[['ألف','ألفان','آلاف','ألفاً'],['مليون','مليونان','ملايين','مليوناً'],['مليار','ملياران','مليارات','ملياراً']];
+function vchScaleWord(g,s){
+  if(g===1) return s[0];
+  if(g===2) return s[1];
+  const r=g%100;
+  if(r>=3&&r<=10) return vchBelow1000(g)+' '+s[2];
+  if(r>=11) return vchBelow1000(g)+' '+s[3];
+  return vchBelow1000(g)+' '+s[0];
+}
+function vchToWords(n){
+  if(n===0) return 'صفر';
+  const parts=[]; let i=-1;
+  while(n>0){
+    const g=n%1000;
+    if(g) parts.unshift(i<0? vchBelow1000(g) : vchScaleWord(g,VCH_SCALES[i]));
+    n=Math.floor(n/1000); i++;
+    if(i>=VCH_SCALES.length && n>0) return 'مبلغ كبير جداً';
+  }
+  return parts.join(' و');
+}
+const VCH_CUR={ SAR:{main:'ريال',full:'ريال سعودي',sub:'هللة'}, EGP:{main:'جنيه',full:'جنيه مصري',sub:'قرش'}, USD:{main:'دولار',full:'دولار أمريكي',sub:'سنت'} };
+function vchAmountWords(draft){
+  const c = VCH_CUR[draft.cur]||VCH_CUR.SAR;
+  const main = parseInt(draft.amount,10)||0;
+  const sub = Math.min(99, parseInt(draft.sub,10)||0);
+  if(!main && !sub) return '—';
+  let t='فقط ';
+  if(main) t += vchToWords(main)+' '+c.full;
+  if(sub) t += (main?' و':'')+vchToWords(sub)+' '+c.sub;
+  return t+' لا غير';
+}
+function vchHijri(iso){
+  if(!iso) return '';
+  try{
+    const d = new Date(iso+'T12:00:00');
+    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'}).format(d);
+  }catch(e){ return ''; }
+}
+function renderVoucher(main){
+  topbar(main, state.buildingName, 'سند صرف', 'نموذج سند صرف رسمي — عبّي البيانات ثم اطبعي، ورقم السند يتزايد تلقائياً مع كل طباعة ويُحفظ على السحابة.');
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'vch-toolbar';
+  toolbar.innerHTML = `
+    <button class="btn" id="vchPrintBtn">🖨 طباعة السند</button>
+    <button class="btn-ghost" id="vchNewBtn">↺ سند جديد (مسح الحقول)</button>
+    <div class="vch-no-box">السند التالي رقم <b>${String(state.nextVoucherNo).padStart(4,'0')}</b></div>
+  `;
+  main.appendChild(toolbar);
+
+  const d = voucherDraft;
+  const card = document.createElement('div');
+  card.className = 'vch-card';
+  card.innerHTML = `
+    <header>
+      <div class="vch-brand">
+        <img src="${LOGO_URI}" alt="شعار">
+        <div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div>
+      </div>
+      <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
+      <div class="vch-meta">
+        <label>رقم السند <span class="vch-no">${String(state.nextVoucherNo).padStart(4,'0')}</span></label>
+        <label>التاريخ <input type="date" id="vch-date" value="${esc(d.date)}"></label>
+        <label>الموافق <span id="vch-hijri" style="min-width:130px;text-align:center;font-weight:600;">${vchHijri(d.date)}</span></label>
+      </div>
+    </header>
+
+    <div class="vch-amount-row">
+      <div class="vch-amount">
+        <div><b id="vch-mainLbl">${VCH_CUR[d.cur].main}</b><input id="vch-amt" inputmode="decimal" placeholder="0" value="${esc(d.amount)}" aria-label="المبلغ"></div>
+        <div class="vch-sub"><b id="vch-subLbl">${VCH_CUR[d.cur].sub}</b><input id="vch-sub" inputmode="numeric" placeholder="00" maxlength="2" value="${esc(d.sub)}" aria-label="الكسور"></div>
+      </div>
+      <label class="vch-curr" for="vch-cur">العملة
+        <select id="vch-cur" style="width:auto">
+          <option value="SAR" ${d.cur==='SAR'?'selected':''}>ريال سعودي</option>
+          <option value="EGP" ${d.cur==='EGP'?'selected':''}>جنيه مصري</option>
+          <option value="USD" ${d.cur==='USD'?'selected':''}>دولار أمريكي</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="vch-fields">
+      <div class="vch-f"><span>اصرفوا للسيد / السادة</span><input class="vch-grow" id="vch-to" placeholder="اسم المستفيد" value="${esc(d.to)}"></div>
+      <div class="vch-f"><span>مبلغ وقدره</span><div class="vch-words" id="vch-words">${vchAmountWords(d)}</div></div>
+      <div class="vch-f"><span>وذلك عن</span><input class="vch-grow" id="vch-for" placeholder="بيان الصرف" value="${esc(d.for)}"></div>
+
+      <div class="vch-f vch-pay" id="vch-pay">
+        <span>طريقة الدفع</span>
+        <label><input type="radio" name="vch-pm" value="cash" id="vch-pm1" ${d.method==='cash'?'checked':''}> نقداً</label>
+        <label><input type="radio" name="vch-pm" value="cheque" id="vch-pm2" ${d.method==='cheque'?'checked':''}> شيك</label>
+        <label><input type="radio" name="vch-pm" value="transfer" id="vch-pm3" ${d.method==='transfer'?'checked':''}> تحويل بنكي</label>
+      </div>
+      <div class="vch-two" id="vch-bankRow" ${d.method==='cash'?'hidden':''}>
+        <div class="vch-f"><span id="vch-refLbl">${d.method==='cheque'?'رقم الشيك':'رقم الحوالة'}</span><input class="vch-grow" id="vch-ref" value="${esc(d.ref)}"></div>
+        <div class="vch-f"><span>على بنك</span><input class="vch-grow" id="vch-bank" value="${esc(d.bank)}"></div>
+      </div>
+      <div class="vch-two">
+        <div class="vch-f"><span>رقم الوحدة / الشقة <em>(اختياري)</em></span><input class="vch-grow" id="vch-unit" value="${esc(d.unit)}"></div>
+        <div class="vch-f"><span>ملاحظات</span><input class="vch-grow" id="vch-note" value="${esc(d.note)}"></div>
+      </div>
+    </div>
+
+    <div class="vch-sign">
+      <div><b>المستلم</b><input id="vch-s1" placeholder="الاسم" value="${esc(d.s1)}"><small>التوقيع</small></div>
+      <div><b>المحاسب</b><input id="vch-s2" placeholder="الاسم" value="${esc(d.s2)}"><small>التوقيع</small></div>
+      <div><b>المدير</b><input id="vch-s3" placeholder="الاسم" value="${esc(d.s3)}"><small>الاعتماد</small></div>
+      <div><b>الختم</b><div class="vch-stamp">مكان الختم</div></div>
+    </div>
+
+    <div class="vch-footer">
+      <span>${esc(state.buildingName)} · هاتف 2373602200</span>
+      <span></span>
+    </div>
+  `;
+  main.appendChild(card);
+
+  // live field bindings — update the in-memory draft without a full page re-render
+  const q = sel => card.querySelector(sel);
+  const bind = (sel, key, onChange) => { const el=q(sel); el.addEventListener('input',()=>{ d[key]=el.value; if(onChange) onChange(); }); };
+  bind('#vch-to','to'); bind('#vch-for','for'); bind('#vch-unit','unit'); bind('#vch-note','note');
+  bind('#vch-ref','ref'); bind('#vch-bank','bank');
+  bind('#vch-s1','s1');
+  q('#vch-s2').addEventListener('input',()=>{ d.s2=q('#vch-s2').value; });
+  q('#vch-s2').addEventListener('change',async ()=>{ if(!state.voucherDefaults) state.voucherDefaults={}; state.voucherDefaults.accountant=d.s2; await saveState(); });
+  q('#vch-s3').addEventListener('input',()=>{ d.s3=q('#vch-s3').value; });
+  q('#vch-s3').addEventListener('change',async ()=>{ if(!state.voucherDefaults) state.voucherDefaults={}; state.voucherDefaults.manager=d.s3; await saveState(); });
+
+  q('#vch-date').addEventListener('change',()=>{ d.date=q('#vch-date').value; q('#vch-hijri').textContent=vchHijri(d.date); });
+
+  const updateWords = ()=>{ q('#vch-words').textContent = vchAmountWords(d); };
+  q('#vch-amt').addEventListener('input',()=>{ d.amount=q('#vch-amt').value; updateWords(); });
+  q('#vch-sub').addEventListener('input',()=>{ d.sub=q('#vch-sub').value; updateWords(); });
+  q('#vch-cur').addEventListener('change',()=>{
+    d.cur=q('#vch-cur').value;
+    q('#vch-mainLbl').textContent = VCH_CUR[d.cur].main;
+    q('#vch-subLbl').textContent = VCH_CUR[d.cur].sub;
+    updateWords();
+  });
+
+  card.querySelectorAll('input[name=vch-pm]').forEach(r=>r.addEventListener('change',()=>{
+    d.method = card.querySelector('input[name=vch-pm]:checked').value;
+    q('#vch-bankRow').hidden = d.method==='cash';
+    q('#vch-refLbl').textContent = d.method==='cheque' ? 'رقم الشيك' : 'رقم الحوالة';
+  }));
+
+  q('#vchNewBtn').addEventListener('click',()=>{ voucherDraft = newVoucherDraft(); render(); });
+  q('#vchPrintBtn').addEventListener('click',()=>printVoucher());
+}
+function buildVoucherPrintHTML(no){
+  const d = voucherDraft;
+  const c = VCH_CUR[d.cur]||VCH_CUR.SAR;
+  const payLabel = d.method==='cash'?'نقداً':d.method==='cheque'?'شيك':'تحويل بنكي';
+  return `
+  <div class="vch-print-page">
+    <div class="vch-card">
+      <header>
+        <div class="vch-brand"><img src="${LOGO_URI}" alt="شعار"><div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div></div>
+        <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
+        <div class="vch-meta">
+          <label>رقم السند <span class="vch-no">${String(no).padStart(4,'0')}</span></label>
+          <label>التاريخ <span>${esc(d.date)}</span></label>
+          <label>الموافق <span>${esc(vchHijri(d.date))}</span></label>
+        </div>
+      </header>
+      <div class="vch-amount-row">
+        <div class="vch-amount">
+          <div><b>${c.main}</b><div class="vch-amt-val">${esc(d.amount||'0')}</div></div>
+          <div class="vch-sub"><b>${c.sub}</b><div class="vch-amt-val">${esc(d.sub||'00')}</div></div>
+        </div>
+      </div>
+      <div class="vch-fields">
+        <div class="vch-f"><span>اصرفوا للسيد / السادة</span><div class="vch-grow vch-val">${esc(d.to)||'—'}</div></div>
+        <div class="vch-f"><span>مبلغ وقدره</span><div class="vch-words">${vchAmountWords(d)}</div></div>
+        <div class="vch-f"><span>وذلك عن</span><div class="vch-grow vch-val">${esc(d.for)||'—'}</div></div>
+        <div class="vch-f vch-pay"><span>طريقة الدفع</span><b>${payLabel}</b>${d.method!=='cash'?` — ${d.method==='cheque'?'رقم الشيك':'رقم الحوالة'}: ${esc(d.ref)||'—'} — على بنك: ${esc(d.bank)||'—'}`:''}</div>
+        <div class="vch-two">
+          <div class="vch-f"><span>رقم الوحدة / الشقة</span><div class="vch-grow vch-val">${esc(d.unit)||'—'}</div></div>
+          <div class="vch-f"><span>ملاحظات</span><div class="vch-grow vch-val">${esc(d.note)||'—'}</div></div>
+        </div>
+      </div>
+      <div class="vch-sign">
+        <div><b>المستلم</b><div class="vch-sign-line">${esc(d.s1)||''}</div><small>التوقيع</small></div>
+        <div><b>المحاسب</b><div class="vch-sign-line">${esc(d.s2)||''}</div><small>التوقيع</small></div>
+        <div><b>المدير</b><div class="vch-sign-line">${esc(d.s3)||''}</div><small>الاعتماد</small></div>
+        <div><b>الختم</b><img src="${STAMP_URI}" class="vch-stamp-img" alt="ختم"></div>
+      </div>
+      <div class="vch-footer"><span>${esc(state.buildingName)} · هاتف 2373602200</span><span>صدر بتاريخ ${new Date().toLocaleString('ar-SA-u-nu-latn',{dateStyle:'medium',timeStyle:'short'})}</span></div>
+    </div>
+  </div>`;
+}
+const VCH_PRINT_STYLE = `
+  *{box-sizing:border-box;}
+  body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl;margin:0;padding:16px;background:#fff;color:#16181d;}
+  .vch-card{max-width:900px;margin:0 auto;position:relative;padding:24px 30px;border-radius:0;}
+  .vch-card::before{content:"";position:absolute;inset:10px;border:1px solid #16181d;}
+  .vch-card::after{content:"";position:absolute;inset:14px;border:1px solid #a8833a;opacity:.55;}
+  header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;position:relative;}
+  .vch-brand{display:flex;align-items:center;gap:12px;}
+  .vch-brand img{width:48px;height:48px;object-fit:contain;}
+  .vch-brand h1{font:700 20px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;}
+  .vch-brand small{display:block;color:#6b6f7a;font-size:12px;direction:ltr;text-align:right;}
+  .vch-title{text-align:center;}
+  .vch-title h2{font:700 28px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:6px 26px 8px;border-block:2px solid #16181d;}
+  .vch-title span{display:block;font:600 11px sans-serif;letter-spacing:.3em;color:#a8833a;margin-top:6px;direction:ltr;}
+  .vch-meta{display:grid;gap:6px;justify-self:end;}
+  .vch-meta label{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b6f7a;justify-content:flex-end;}
+  .vch-no{font:700 18px inherit;color:#b3261e;}
+  .vch-amount-row{margin-top:20px;}
+  .vch-amount{display:flex;border:1.5px solid #16181d;border-radius:6px;overflow:hidden;width:fit-content;}
+  .vch-amount div{display:grid;text-align:center;}
+  .vch-amount b{font:600 11px sans-serif;background:#16181d;color:#fff;padding:4px 10px;}
+  .vch-amt-val{font:700 18px sans-serif;padding:6px 14px;background:#f6f0e3;min-width:60px;}
+  .vch-sub{border-inline-start:1.5px solid #16181d;}
+  .vch-fields{display:grid;gap:14px;margin-top:20px;}
+  .vch-f{display:flex;align-items:flex-end;gap:10px;}
+  .vch-f>span{white-space:nowrap;font-weight:600;font-size:14px;}
+  .vch-grow{flex:1;}
+  .vch-val{border-bottom:1px dotted #6b6f7a;padding:4px 2px;font-weight:500;}
+  .vch-words{flex:1;padding:5px 10px;background:#f6f0e3;border-bottom:1px solid #a8833a;font-weight:600;}
+  .vch-two{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;}
+  .vch-sign{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:30px;}
+  .vch-sign div{text-align:center;}
+  .vch-sign b{display:block;font:700 13px "El Messiri","IBM Plex Sans Arabic",sans-serif;margin-bottom:10px;}
+  .vch-sign-line{border-bottom:1px solid #16181d;min-height:22px;font-size:13px;padding-bottom:4px;}
+  .vch-sign small{display:block;color:#6b6f7a;font-size:11px;margin-top:4px;}
+  .vch-stamp-img{width:70px;height:auto;opacity:.9;}
+  .vch-footer{margin-top:20px;padding-top:10px;border-top:1px solid #c9ccd4;display:flex;justify-content:space-between;color:#6b6f7a;font-size:11px;}
+  @page{size:A5 landscape;margin:6mm;}
+`;
+async function printVoucher(){
+  const no = state.nextVoucherNo;
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>سند صرف رقم ${String(no).padStart(4,'0')} - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>${VCH_PRINT_STYLE}</style></head>
+    <body>${buildVoucherPrintHTML(no)}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
+  state.nextVoucherNo = no + 1;
+  await saveState();
+  render();
+}
+
 function openTxModal(id){
   const t = id ? state.transactions.find(x=>x.id===id) : null;
   showModal(`
