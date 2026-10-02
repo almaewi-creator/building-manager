@@ -2356,6 +2356,7 @@ function newVoucherDraft(prefill){
 // down the whole app. It's created lazily the first time the page is opened.
 let voucherDraft = null;
 let voucherHistoryMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter) in the vouchers log below
+let voucherEditingId = null; // set when the draft was opened from an existing history record, so printing updates it in place instead of creating a duplicate
 function openVoucherForExpense(txId){
   const t = state.transactions.find(x=>x.id===txId);
   if(!t) return;
@@ -2420,13 +2421,26 @@ function renderVoucher(main){
   if(!voucherDraft) voucherDraft = newVoucherDraft();
   topbar(main, state.buildingName, 'سند صرف', 'نموذج سند صرف رسمي — عبّي البيانات ثم اطبعي. رقم السند بجانب العنوان قابل للتعديل مباشرة، وأنت المتحكم فيه بالكامل.');
 
+  if(voucherEditingId){
+    const banner = document.createElement('div');
+    banner.className = 'alert-banner amber';
+    banner.style.marginBottom = '12px';
+    banner.innerHTML = `<div class="alert-icon">✎</div>
+      <div class="alert-text"><b>تعديل سند محفوظ</b><span>أي تعديل وطباعة الآن بيحدّث نفس السند في السجل بدل ما يسوي نسخة جديدة.</span></div>
+      <button class="btn-ghost btn-sm" id="vchCancelEditBtn">إلغاء التعديل</button>`;
+    main.appendChild(banner);
+  }
+
   const toolbar = document.createElement('div');
   toolbar.className = 'vch-toolbar';
   toolbar.innerHTML = `
-    <button class="btn" id="vchPrintBtn">🖨 طباعة السند</button>
+    <button class="btn" id="vchPrintBtn">${voucherEditingId?'🖨 حفظ وطباعة التعديل':'🖨 طباعة السند'}</button>
     <button class="btn-ghost" id="vchNewBtn">↺ سند جديد (مسح الحقول)</button>
   `;
   main.appendChild(toolbar);
+  if(voucherEditingId){
+    main.querySelector('#vchCancelEditBtn').addEventListener('click', ()=>{ voucherEditingId=null; voucherDraft=newVoucherDraft(); render(); });
+  }
 
   const d = voucherDraft;
   const card = document.createElement('div');
@@ -2539,7 +2553,7 @@ function renderVoucher(main){
     await saveState();
   });
 
-  q('#vchNewBtn').addEventListener('click',()=>{ voucherDraft = newVoucherDraft(); render(); });
+  q('#vchNewBtn').addEventListener('click',()=>{ voucherDraft = newVoucherDraft(); voucherEditingId = null; render(); });
   q('#vchPrintBtn').addEventListener('click',()=>{
     // Make sure whatever number the person typed (even if they haven't
     // tabbed/blurred out of the field yet) is what actually gets used.
@@ -2557,6 +2571,7 @@ function renderVoucherHistory(main){
   filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">سجل السندات — الشهر:</label>
     <input type="month" id="vchHistMonth" value="${voucherHistoryMonth||currentMonthKey()}" ${voucherHistoryMonth?'':'disabled'}>
     <button class="btn-ghost btn-sm" id="vchHistAllBtn">${voucherHistoryMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
+    <button class="btn-ghost btn-sm" id="vchPrintAllBtn" title="يطبع كل السندات الظاهرة في القائمة الآن دفعة واحدة">🖨 طباعة الكل</button>
     <button class="btn-ghost btn-sm" id="vchRenumberBtn" title="يرتب كل السندات حسب التاريخ ويعيد ترقيمها 1, 2, 3...">🔢 ترقيم تلقائي حسب التاريخ</button>`;
   main.appendChild(filters);
   filters.querySelector('#vchHistMonth').addEventListener('change', e=>{ voucherHistoryMonth = e.target.value; render(); });
@@ -2567,6 +2582,7 @@ function renderVoucherHistory(main){
     ? state.vouchers.filter(v=>(v.date||'').slice(0,7)===voucherHistoryMonth)
     : state.vouchers.slice();
   list.sort((a,b)=> b.no - a.no);
+  filters.querySelector('#vchPrintAllBtn').addEventListener('click', ()=> printAllVouchersInHistory(list));
 
   const panel = document.createElement('div');
   panel.className = 'panel';
@@ -2704,18 +2720,39 @@ const VCH_PRINT_STYLE = `
   @page{size:A4;margin:0;}
 `;
 async function printVoucher(){
-  const no = state.nextVoucherNo;
-  openVoucherPrintWindow(no, voucherDraft);
-  // Archive a snapshot of this voucher so it can be found later by date/month
-  // and reprinted — the same way الدفعات الشهرية lets you go back to past
-  // months — instead of the data only ever living in the on-screen draft.
-  // Each record gets its own unique id (separate from the السند number,
-  // which the person can freely reuse/override) so a specific record can be
-  // reprinted, reopened or deleted even if two records share the same no.
   if(!state.vouchers) state.vouchers = [];
-  const id = 'vh'+Date.now()+Math.random().toString(36).slice(2,7);
-  state.vouchers.push(Object.assign({}, voucherDraft, {no, id, savedAt: new Date().toISOString()}));
-  state.nextVoucherNo = no + 1;
+  const no = state.nextVoucherNo;
+  if(voucherEditingId){
+    // This draft was opened from an existing history record ("✎ فتحه
+    // كمسودة") — update that same record in place instead of archiving a
+    // brand-new one, so correcting a mistake doesn't duplicate the voucher.
+    const idx = state.vouchers.findIndex(v=>v.id===voucherEditingId);
+    if(idx === -1){
+      // The original record was deleted meanwhile — fall back to saving as new.
+      const id = 'vh'+Date.now()+Math.random().toString(36).slice(2,7);
+      state.vouchers.push(Object.assign({}, voucherDraft, {no, id, savedAt: new Date().toISOString()}));
+      state.nextVoucherNo = Math.max(state.nextVoucherNo, no+1);
+    } else {
+      const existing = state.vouchers[idx];
+      state.vouchers[idx] = Object.assign({}, existing, voucherDraft, {no, id: existing.id, savedAt: new Date().toISOString()});
+      // Editing a saved voucher doesn't consume the next-number counter —
+      // only genuinely new vouchers (below) advance it.
+      if(no >= state.nextVoucherNo) state.nextVoucherNo = no + 1;
+    }
+    openVoucherPrintWindow(no, voucherDraft);
+    voucherEditingId = null;
+  } else {
+    openVoucherPrintWindow(no, voucherDraft);
+    // Archive a snapshot of this voucher so it can be found later by date/month
+    // and reprinted — the same way الدفعات الشهرية lets you go back to past
+    // months — instead of the data only ever living in the on-screen draft.
+    // Each record gets its own unique id (separate from the السند number,
+    // which the person can freely reuse/override) so a specific record can be
+    // reprinted, reopened or deleted even if two records share the same no.
+    const id = 'vh'+Date.now()+Math.random().toString(36).slice(2,7);
+    state.vouchers.push(Object.assign({}, voucherDraft, {no, id, savedAt: new Date().toISOString()}));
+    state.nextVoucherNo = no + 1;
+  }
   await saveState();
   render();
 }
@@ -2728,7 +2765,26 @@ function loadVoucherFromHistory(id){
   const rec = state.vouchers.find(v=>v.id===id);
   if(!rec) return;
   voucherDraft = Object.assign({}, rec);
+  voucherEditingId = id;
   render();
+}
+// Prints every voucher currently shown in the history list (respecting
+// whatever month filter is active) in one go — two copies per sheet, same
+// as a single voucher, just stacked sheet after sheet for the whole batch.
+function printAllVouchersInHistory(list){
+  if(!list || list.length===0){ alert('لا توجد سندات لطباعتها في هذا النطاق'); return; }
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  const sorted = list.slice().sort((a,b)=> a.no - b.no);
+  const pages = sorted.map(v=>buildVoucherPrintHTML(v.no, v)).join('');
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>طباعة كل السندات - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>${VCH_PRINT_STYLE}</style></head>
+    <body>${pages}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
 }
 async function deleteVoucherHistory(id){
   const rec = state.vouchers.find(v=>v.id===id);
