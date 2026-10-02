@@ -2475,9 +2475,17 @@ function renderVoucher(main){
   // live field bindings — update the in-memory draft without a full page re-render
   const q = sel => main.querySelector(sel);
   const bind = (sel, key, onChange) => { const el=q(sel); el.addEventListener('input',()=>{ d[key]=el.value; if(onChange) onChange(); }); };
-  bind('#vch-to','to'); bind('#vch-for','for'); bind('#vch-unit','unit'); bind('#vch-note','note');
+  bind('#vch-for','for'); bind('#vch-unit','unit'); bind('#vch-note','note');
   bind('#vch-ref','ref'); bind('#vch-bank','bank');
-  bind('#vch-s1','s1');
+  // "اصرفوا للسيد/السادة" auto-fills "المستلم" (recipient signature) live, as
+  // long as the person hasn't typed something different into المستلم
+  // themselves — once they do, the two stop following each other.
+  let s1Manual = d.s1 !== '' && d.s1 !== d.to;
+  q('#vch-to').addEventListener('input',()=>{
+    d.to = q('#vch-to').value;
+    if(!s1Manual){ d.s1 = d.to; q('#vch-s1').value = d.to; }
+  });
+  q('#vch-s1').addEventListener('input',()=>{ d.s1 = q('#vch-s1').value; s1Manual = true; });
   q('#vch-s3').addEventListener('input',()=>{ d.s3=q('#vch-s3').value; });
   q('#vch-s3').addEventListener('change',async ()=>{ if(!state.voucherDefaults) state.voucherDefaults={}; state.voucherDefaults.manager=d.s3; await saveState(); });
 
