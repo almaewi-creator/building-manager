@@ -2643,6 +2643,23 @@ function renderVoucher(main){
   renderVoucherHistory(main);
 }
 function renderVoucherHistory(main){
+  if(!state.vouchers) state.vouchers = [];
+  // Vouchers saved before auto-linking existed (or whose linked transaction
+  // was deleted directly from المصروفات) have no valid txId — surface a
+  // one-click way to create/attach their expense entry.
+  const unlinkedVouchers = state.vouchers.filter(v=>!v.txId || !state.transactions.some(t=>t.id===v.txId));
+  if(unlinkedVouchers.length>0){
+    const linkBanner = document.createElement('div');
+    linkBanner.className = 'alert-banner amber';
+    linkBanner.style.marginTop = '22px';
+    const unlinkedTotal = unlinkedVouchers.reduce((s,v)=>s+vchTotalAmount(v),0);
+    linkBanner.innerHTML = `<div class="alert-icon">🔗</div>
+      <div class="alert-text"><b>${unlinkedVouchers.length} ${unlinkedVouchers.length===1?'سند':'سندات'} غير مرتبط بمصروف</b><span>بإجمالي ${fmt(unlinkedTotal)} ر.س — بيُنشئ لكل واحد منها حركة مصروف مطابقة في الإيرادات والمصروفات.</span></div>
+      <button class="btn-ghost btn-sm" id="vchLinkAllBtn">🔗 ربط الكل بالمصروفات</button>`;
+    main.appendChild(linkBanner);
+    linkBanner.querySelector('#vchLinkAllBtn').addEventListener('click', backfillVoucherExpenseLinks);
+  }
+
   const filters = document.createElement('div');
   filters.className = 'filters-row';
   filters.style.marginTop = '22px';
@@ -2823,6 +2840,21 @@ function syncVoucherExpenseTx(voucherNo, draft, existingTxId){
     state.transactions.push(tx);
   }
   return tx.id;
+}
+// One-click cleanup for vouchers saved before auto-linking existed (or whose
+// linked transaction was deleted straight from المصروفات) — creates a fresh
+// expense entry for each and links it, so سند الصرف and المصروفات match up.
+async function backfillVoucherExpenseLinks(){
+  const unlinked = state.vouchers.filter(v=>!v.txId || !state.transactions.some(t=>t.id===v.txId));
+  if(unlinked.length===0){ alert('كل السندات مرتبطة بمصروفاتها بالفعل ✅'); return; }
+  if(!confirm('هذا بينشئ حركة مصروف جديدة لكل سند من '+unlinked.length+' سند غير مرتبط حاليًا بمصروف، بنفس مبلغه وتاريخه. تكمل؟')) return;
+  unlinked.forEach(v=>{
+    const txId = syncVoucherExpenseTx(v.no, v, null);
+    v.txId = txId;
+  });
+  await saveState();
+  render();
+  alert('تم — تم ربط '+unlinked.length+' سند بحركات مصروف جديدة في الإيرادات والمصروفات.');
 }
 async function printVoucher(){
   if(!state.vouchers) state.vouchers = [];
