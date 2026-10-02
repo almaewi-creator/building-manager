@@ -846,6 +846,24 @@ function lastNMonthKeys(n){
   }
   return out;
 }
+function getMonthlySummary(n){
+  // Per-month breakdown for the dashboard table: how much was collected from
+  // apartment subscriptions that month (state.payments — these never become
+  // a transaction), plus any other income/expense transactions dated that
+  // month (transactions already include driver-room rent when recorded),
+  // and the net/remaining for that month alone.
+  return lastNMonthKeys(n).map(k=>{
+    let duesCollected = 0;
+    state.units.forEach(u=>{
+      const rec = state.payments[u.id+'|'+k];
+      if(rec && rec.paid) duesCollected += Number(rec.amount)||0;
+    });
+    const otherIncome = state.transactions.filter(t=>t.type==='income' && (t.date||'').slice(0,7)===k).reduce((s,t)=>s+Number(t.amount),0);
+    const expense = state.transactions.filter(t=>t.type==='expense' && (t.date||'').slice(0,7)===k).reduce((s,t)=>s+Number(t.amount),0);
+    const totalIncome = duesCollected + otherIncome;
+    return {month:k, duesCollected, otherIncome, totalIncome, expense, net: totalIncome - expense};
+  });
+}
 function getMonthlyFinance(n){
   return lastNMonthKeys(n).map(k=>{
     const income = state.transactions.filter(t=>t.type==='income' && (t.date||'').slice(0,7)===k).reduce((s,t)=>s+Number(t.amount),0);
@@ -1113,6 +1131,24 @@ function renderDashboard(main){
   chartsRow.appendChild(chartCard1);
   chartsRow.appendChild(chartCard2);
   main.appendChild(chartsRow);
+
+  const monthlyPanel = document.createElement('div');
+  monthlyPanel.className = 'panel';
+  const monthlySummary = getMonthlySummary(6).slice().reverse(); // newest month first
+  const msRows = monthlySummary.map(m=>`<tr>
+      <td><b>${esc(monthLabel(m.month))}</b></td>
+      <td>${fmt(m.duesCollected)} ر.س</td>
+      <td>${fmt(m.otherIncome)} ر.س</td>
+      <td><b style="color:#1f7a4a;">${fmt(m.totalIncome)} ر.س</b></td>
+      <td><b style="color:#c0392b;">${fmt(m.expense)} ر.س</b></td>
+      <td><b style="${m.net<0?'color:#c0392b;':'color:#1f7a4a;'}">${m.net<0?'⚠ عجز ':''}${fmt(Math.abs(m.net))} ر.س</b></td>
+    </tr>`).join('');
+  monthlyPanel.innerHTML = `<div class="panel-title">ملخص كل شهر — الدخل والمصروفات والباقي</div>
+    <div style="overflow-x:auto;">
+    <table><thead><tr><th>الشهر</th><th>دفعات شهرية محصّلة</th><th>إيرادات أخرى</th><th>إجمالي الدخل</th><th>المصروفات</th><th>الباقي من الشهر</th></tr></thead>
+    <tbody>${msRows||'<tr><td colspan="6" class="empty">لا توجد بيانات بعد</td></tr>'}</tbody></table>
+    </div>`;
+  main.appendChild(monthlyPanel);
 
   const debtPanel = document.createElement('div');
   debtPanel.className='panel';
