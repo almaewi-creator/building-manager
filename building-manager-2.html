@@ -323,6 +323,7 @@ function defaultState(){
     maintenance: [],
     driverRooms: [1,2,3,4,5].map(n=>({id:'dr'+n, number:n, tenant:'', monthlyRent:0, collected:0, startMonth:''})),
     openingBalance: 0,
+    nextVoucherNo: 1,
     nextIds: {owner:31, unit:31, tx:1, eq:1, mnt:1}
   };
 }
@@ -470,6 +471,7 @@ function migrateState(){
   if(state.billingStartMonth===undefined) state.billingStartMonth = '';
   if(state.billingModeIgnoreStart===undefined) state.billingModeIgnoreStart = false;
   if(state.openingBalance===undefined) state.openingBalance = 0;
+  if(!state.nextVoucherNo) state.nextVoucherNo = 1;
   if(!state.roomPayments) state.roomPayments = {};
   /* One-time migration: driver rooms used to track payment with a single
      ever-increasing "collected" counter (topped up by an "add payment"
@@ -670,6 +672,7 @@ const NAV = [
   {id:'payments', label:'الدفعات الشهرية', icon:'💳'},
   {id:'driverRooms', label:'غرف السواقين', icon:'🚗'},
   {id:'finance', label:'الإيرادات والمصروفات', icon:'📊'},
+  {id:'voucher', label:'سند صرف', icon:'🧾'},
   {id:'equipment', label:'معدات المبنى', icon:'⚙'},
   {id:'maintenance', label:'الصيانة', icon:'🛠'},
   {id:'settings', label:'الإعدادات', icon:'⚙️'}
@@ -735,6 +738,7 @@ function render(){
   else if(currentView==='payments') renderPayments(main);
   else if(currentView==='driverRooms') renderDriverRooms(main);
   else if(currentView==='finance') renderFinance(main);
+  else if(currentView==='voucher') renderVoucher(main);
   else if(currentView==='equipment') renderEquipment(main);
   else if(currentView==='maintenance') renderMaintenance(main);
   else if(currentView==='settings') renderSettings(main);
