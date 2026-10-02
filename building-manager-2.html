@@ -1822,13 +1822,6 @@ function buildDefaultersReportHTML(opts){
       <tbody>${rows || `<tr><td colspan="${fixedColCount+2+months.length}">لا يوجد أعضاء متأخرون عن هذي الفترة 🎉</td></tr>`}</tbody>
     </table></div>
     <div class="stmt-tail-block">
-      ${rowsData.length>0 ? `
-      <div class="stmt-chart-wrap stmt-chart-compact">
-        <div class="stmt-section-title" style="text-align:center;">الرسم البياني للمتأخرات حسب الشقة</div>
-        ${buildArrearsBarChartSVG(chartData, {compact:true})}
-        ${buildArrearsSeverityLegendHTML()}
-      </div>
-      ` : ''}
       <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
       <div class="stmt-footer">المبلغ الظاهر في عمود كل شهر هو القيمة غير المسددة لذلك الشهر فقط، وعلامة ✓ تعني أن الشهر مسدد بالكامل. عمود "مستحقات سابقة" يشمل أي مبلغ متأخر من قبل بداية الفترة المختارة. هذا الكشف صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
     </div>
