@@ -2248,7 +2248,7 @@ async function saveSettings(){
 let roomPaymentsMonth = currentMonthKey();
 function renderDriverRooms(main){
   topbar(main, state.buildingName, 'غرف السواقين', 'إيجار غرف السواقين الخمسة — يُدار الآن بنفس طريقة الدفعات الشهرية للشقق: تحدد الشهر وتؤشر كل غرفة كمدفوعة أو غير مدفوعة.',
-    '<button class="btn-ghost btn-sm" onclick="printDriverRoomsReport()">🖨 طباعة كشف الغرف</button>');
+    '<button class="btn-ghost btn-sm" onclick="backfillRoomTx()">🔄 مزامنة الإيرادات</button> <button class="btn-ghost btn-sm" onclick="printDriverRoomsReport()">🖨 طباعة كشف الغرف</button>');
 
   const totalMonthly = state.driverRooms.reduce((s,r)=>s+Number(r.monthlyRent||0),0);
   const totalCollected = state.driverRooms.reduce((s,r)=>s+computeRoomCollected(r),0);
@@ -2321,6 +2321,55 @@ async function saveDriverRoom(id){
   r.startMonth = document.getElementById('f-drstart').value;
   await saveState(); closeModal(); render();
 }
+/* Keeps المصروفات والإيرادات in step with a room's monthly payment: marking a
+   month paid creates (or updates) one linked income transaction, marking it
+   unpaid removes it. Linked via tx.roomPayKey = roomId|monthKey. A matching
+   income entry that was typed in by hand earlier (same room, same month, same
+   amount) is adopted instead of duplicated. */
+function syncRoomTx(roomId, mk){
+  if(!state.transactions) state.transactions = [];
+  if(!state.nextIds) state.nextIds = {};
+  if(!state.nextIds.tx) state.nextIds.tx = 1;
+  const key = roomId+'|'+mk;
+  const r = state.driverRooms.find(x=>x.id===roomId);
+  if(!r) return false;
+  const rec = state.roomPayments[key];
+  let tx = state.transactions.find(t=>t.roomPayKey===key);
+  if(!rec || !rec.paid){
+    if(tx){ state.transactions = state.transactions.filter(t=>t!==tx); return true; }
+    return false;
+  }
+  const amount = Number(rec.amount)||0;
+  if(!tx){
+    const re = new RegExp('غرفة\\s*'+String(r.number)+'(?!\\d)');
+    tx = state.transactions.find(t=>t.type==='income' && !t.roomPayKey
+      && re.test((t.category||'')+' '+(t.note||''))
+      && String(t.date||'').slice(0,7)===mk && Number(t.amount)===amount);
+    if(tx){ tx.roomPayKey = key; return false; }
+  }
+  const nowMonth = currentMonthKey();
+  let date;
+  if(mk===nowMonth) date = todayISODate();
+  else { const [y,m] = mk.split('-').map(Number); date = mk+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'); }
+  const payload = { type:'income', amount, category:'غرفة '+r.number, method:'كاش',
+    date: (tx && tx.date && String(tx.date).slice(0,7)===mk) ? tx.date : date,
+    note:'إيجار '+monthLabel(mk)+(r.tenant?' — '+r.tenant:''), roomPayKey:key };
+  if(tx){ Object.assign(tx, payload); }
+  else { state.transactions.push(Object.assign({id:'t'+(state.nextIds.tx++), hasAttachment:false}, payload)); }
+  return true;
+}
+async function backfillRoomTx(){
+  let n=0;
+  Object.keys(state.roomPayments||{}).forEach(k=>{
+    if(!state.roomPayments[k].paid) return;
+    const [rid, mk] = k.split('|');
+    const had = state.transactions.some(t=>t.roomPayKey===k);
+    const changed = syncRoomTx(rid, mk);
+    if(!had && changed) n++;
+  });
+  await saveState(); render();
+  alert(n>0 ? 'تم ✅ — أُضيفت '+n+' حركة إيراد ناقصة لدفعات غرف مدفوعة.' : 'كل دفعات الغرف المدفوعة عندها حركة إيراد مرتبطة — ما فيه شي ناقص.');
+}
 async function toggleRoomPayment(roomId){
   const key = roomId+'|'+roomPaymentsMonth;
   const r = state.driverRooms.find(x=>x.id===roomId);
@@ -2328,6 +2377,7 @@ async function toggleRoomPayment(roomId){
   rec.paid = !rec.paid;
   rec.amount = rec.amount || r.monthlyRent || 0;
   state.roomPayments[key] = rec;
+  syncRoomTx(roomId, roomPaymentsMonth);
   await saveState();
   if(!lastCloudSyncOk){
     alert('⚠ تنبيه: تعذّر حفظ هذا التعديل على السحابة (مشكلة اتصال أو صلاحيات). جرّب "حفظ الآن" من القائمة الجانبية بعد شوي.');
@@ -2360,6 +2410,7 @@ async function saveRoomPaymentEdit(roomId){
   const amount = Number(document.getElementById('f-rpayamount').value) || 0;
   const paid = document.getElementById('f-rpaystatus').value === '1';
   state.roomPayments[key] = { paid, amount };
+  syncRoomTx(roomId, roomPaymentsMonth);
   await saveState(); closeModal(); render();
 }
 async function resetRoomPaymentToDefault(roomId){
@@ -2367,6 +2418,7 @@ async function resetRoomPaymentToDefault(roomId){
   const key = roomId+'|'+roomPaymentsMonth;
   const existing = state.roomPayments[key] || {paid:false};
   state.roomPayments[key] = { paid: existing.paid, amount: r.monthlyRent||0 };
+  syncRoomTx(roomId, roomPaymentsMonth);
   await saveState(); closeModal(); render();
 }
 function buildDriverRoomsReportHTML(){
