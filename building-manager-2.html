@@ -910,7 +910,13 @@ function getMonthlySummary(n){
     const otherIncome = state.transactions.filter(t=>t.type==='income' && (t.date||'').slice(0,7)===k).reduce((s,t)=>s+Number(t.amount),0);
     const expense = state.transactions.filter(t=>t.type==='expense' && (t.date||'').slice(0,7)===k).reduce((s,t)=>s+Number(t.amount),0);
     const totalIncome = duesCollected + otherIncome;
-    return {month:k, duesCollected, otherIncome, totalIncome, expense, net: totalIncome - expense};
+    // عند تفعيل الترحيل: إيراد الشهر السابق يغطي مصروفات هذا الشهر (نفس منطق صفحة الإيرادات)
+    let fundingIncome = totalIncome;
+    if(financeCarry){
+      const pk = monthBefore(k);
+      fundingIncome = paidDuesTotal(pk) + state.transactions.filter(t=>t.type==='income' && (t.date||'').slice(0,7)===pk).reduce((s,t)=>s+Number(t.amount),0);
+    }
+    return {month:k, duesCollected, otherIncome, totalIncome, expense, fundingIncome, net: fundingIncome - expense};
   });
 }
 function getMonthlyFinance(n){
@@ -1194,7 +1200,7 @@ function renderDashboard(main){
     </tr>`).join('');
   monthlyPanel.innerHTML = `<div class="panel-title">ملخص كل شهر — الدخل والمصروفات والباقي</div>
     <div style="overflow-x:auto;">
-    <table><thead><tr><th>الشهر</th><th>دفعات شهرية محصّلة</th><th>إيرادات أخرى</th><th>إجمالي الدخل</th><th>المصروفات</th><th>الباقي من الشهر</th></tr></thead>
+    <table><thead><tr><th>الشهر</th><th>دفعات شهرية محصّلة</th><th>إيرادات أخرى</th><th>إجمالي الدخل</th><th>المصروفات</th><th>${financeCarry?'الباقي (إيراد الشهر السابق − مصروفات الشهر)':'الباقي من الشهر'}</th></tr></thead>
     <tbody>${msRows||'<tr><td colspan="6" class="empty">لا توجد بيانات بعد</td></tr>'}</tbody></table>
     </div>`;
   main.appendChild(monthlyPanel);
