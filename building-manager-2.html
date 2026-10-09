@@ -2510,21 +2510,6 @@ function renderFinance(main){
     main.appendChild(banner);
   }
 
-  const stats = document.createElement('div');
-  stats.className='stats-row';
-  stats.style.gridTemplateColumns='repeat(3,1fr)';
-  stats.innerHTML = `
-    <div class="stat-card tint-green"><div class="lbl">الإيرادات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(income)} ر.س</div></div>
-    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(expense)} ر.س</div></div>
-    ${(()=>{const n=income-expense;const mo=financeMonth?' — '+monthLabel(financeMonth):'';
-      if(n<0) return `<div class="stat-card" style="background:var(--red-tint);border-color:#e8b4af;border-width:1.5px;"><div class="lbl" style="color:#c0392b;">⚠ عجز${mo}</div><div class="num" style="color:#c0392b;">${fmt(Math.abs(n))} ر.س</div><div style="font-size:11.5px;color:#c0392b;margin-top:4px;font-weight:600;">المصروفات أكبر من الإيرادات</div></div>`;
-      if(n>0) return `<div class="stat-card tint-green"><div class="lbl">فائض${mo}</div><div class="num" style="color:#1f7a4a;">${fmt(n)} ر.س</div></div>`;
-      return `<div class="stat-card tint-blue"><div class="lbl">الصافي${mo}</div><div class="num">${fmt(0)} ر.س</div></div>`;})()}
-  `;
-  main.appendChild(stats);
-
-  /* Revenue breakdown box: monthly dues (state.payments — never stored as
-     transactions) + driver-room rent (income transactions linked to a room). */
   const unitIds = new Set(state.units.map(u=>u.id));
   const duesIncome = Object.entries(state.payments||{}).reduce((sum,[key,rec])=>{
     if(!rec || !rec.paid) return sum;
@@ -2533,6 +2518,22 @@ function renderFinance(main){
     if(financeMonth && mk!==financeMonth) return sum;
     return sum + (Number(rec.amount)||0);
   },0);
+  const totalIncomeAll = income + duesIncome; // transactions + monthly dues
+  const stats = document.createElement('div');
+  stats.className='stats-row';
+  stats.style.gridTemplateColumns='repeat(3,1fr)';
+  stats.innerHTML = `
+    <div class="stat-card tint-green"><div class="lbl">الإيرادات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(totalIncomeAll)} ر.س</div></div>
+    <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(expense)} ر.س</div></div>
+    ${(()=>{const n=totalIncomeAll-expense;const mo=financeMonth?' — '+monthLabel(financeMonth):'';
+      if(n<0) return `<div class="stat-card" style="background:var(--red-tint);border-color:#e8b4af;border-width:1.5px;"><div class="lbl" style="color:#c0392b;">⚠ عجز${mo}</div><div class="num" style="color:#c0392b;">${fmt(Math.abs(n))} ر.س</div><div style="font-size:11.5px;color:#c0392b;margin-top:4px;font-weight:600;">المصروفات أكبر من الإيرادات</div></div>`;
+      if(n>0) return `<div class="stat-card tint-green"><div class="lbl">فائض${mo}</div><div class="num" style="color:#1f7a4a;">${fmt(n)} ر.س</div></div>`;
+      return `<div class="stat-card tint-blue"><div class="lbl">الصافي${mo}</div><div class="num">${fmt(0)} ر.س</div></div>`;})()}
+  `;
+  main.appendChild(stats);
+
+  /* Revenue breakdown box: monthly dues (state.payments — never stored as
+     transactions) + driver-room rent (income transactions linked to a room). */
   const roomsRent = monthScoped.filter(t=>t.type==='income' && (t.roomPayKey || t.roomId || /^غرفة\s*\d/.test(t.category||''))).reduce((s,t)=>s+Number(t.amount),0);
   const otherInc = income - roomsRent;
   const brk = document.createElement('div');
