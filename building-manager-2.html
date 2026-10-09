@@ -922,6 +922,16 @@ function closingBalanceAt(k){
 /* Where the money physically sits. Unit dues (state.payments) have no
    transaction, so they count as عهدة المدير; transactions carry tx.place
    (missing = عهدة المدير). Total always equals the dashboard account balance. */
+
+function setBankActual(){
+  const cur = state.bankActual && state.bankActual.amount!==undefined ? state.bankActual.amount : '';
+  const v = prompt('اكتب رصيد حساب العمارة الآن كما يظهر في تطبيق البنك (بالريال):', cur);
+  if(v===null) return;
+  const n = Number(String(v).replace(/[^\d.\-]/g,''));
+  if(isNaN(n) || String(v).trim()===''){ alert('رقم غير صالح'); return; }
+  state.bankActual = {amount:n, date:todayISODate()};
+  saveState(); render();
+}
 function placeBalances(){
   const from = state.bankActiveFrom || '';
   let bank = Number(state.openingBalance||0), cash = 0, custody = 0;
@@ -1218,7 +1228,11 @@ function renderDashboard(main){
   placeBox.style.cssText = 'padding:12px 16px;margin-top:12px;';
   const prow = (label,val,extra)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eef0f2;font-size:13.5px;"><span>${label}${extra?`<div style="font-size:11px;color:#c0392b;">${extra}</div>`:''}</span><b style="color:${val<0?'#c0392b':'#1f2d3d'};">${fmt(val)} ر.س</b></div>`;
   placeBox.innerHTML = `<div style="font-weight:800;font-size:13.5px;margin-bottom:2px;">أين المبلغ الآن؟</div>
-    ${prow('🏦 حساب العمارة (البنك)',pb.bank)}
+    ${prow('🏦 حساب العمارة (البنك)',pb.bank,pb.bank<0?'⚠ رصيد البنك المسجَّل سالب — غالبًا دفعات واردة لم تُسجَّل أو مصروف عُلِّم بنكًا بالخطأ':'')}
+    ${(()=>{const ba=state.bankActual; if(!ba||ba.amount===undefined||ba.amount==='') return `<div style="padding:6px 0;border-bottom:1px solid #eef0f2;font-size:12.5px;"><button class="btn-ghost btn-sm" onclick="setBankActual()">🔗 طابق مع رصيد البنك الفعلي</button></div>`;
+      const diff = Number(ba.amount) - pb.bank; const okm = Math.abs(diff)<0.005;
+      let ds=''; try{ ds=new Date(ba.date+'T00:00:00').toLocaleDateString('ar-SA'); }catch(e){}
+      return `<div style="padding:6px 0;border-bottom:1px solid #eef0f2;font-size:12.5px;">رصيد البنك الفعلي حسب كشفك${ds?' ('+esc(ds)+')':''}: <b>${fmt(ba.amount)} ر.س</b> — ${okm?'<span style="color:#1f7a4a;font-weight:700;">✅ مطابق</span>':'<span style="color:#c0392b;font-weight:700;">⚠ الفرق '+fmt(diff)+' ر.س (حركة ناقصة أو غير مطابقة)</span>'} <button class="btn-ghost btn-sm" onclick="setBankActual()">تحديث</button></div>`;})()}
     ${prow('👤 عهدة المدير',pb.custody,pb.custody<0?'سالب = صُرف من مال المدير الشخصي، وهو مستحق له':'')}
     ${prow('💵 نقد (صندوق)',pb.cash)}
     <div style="display:flex;justify-content:space-between;padding-top:8px;font-size:14px;"><b>المجموع = رصيد الحساب</b><b>${fmt(pb.total)} ر.س</b></div>
@@ -2625,6 +2639,16 @@ function auditFinance(){
   // 7) مطابقة الرصيد
   const income = tx.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = tx.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const pbk = placeBalances();
+  if(pbk.bank < 0){
+    const bx = tx.filter(t=>t.type==='expense' && t.place==='bank').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    issues.push(`رصيد حساب العمارة المسجَّل سالب (${fmt(pbk.bank)}). مصروفات معلَّمة "حساب العمارة" (${bx.length}): `+bx.slice(0,10).map(t=>`${t.date} ${fmt(t.amount)} ر.س`).join(' ، ')+(bx.length>10?' …':'')+' — إن كان بينها ما دُفع من حسابك الشخصي فغيّره إلى "عهدة المدير"، وإن كانت دفعات دخلت البنك ولم تُسجَّل فسجّلها');
+  }
+  if(state.bankActual && state.bankActual.amount!==undefined && state.bankActual.amount!==''){
+    const d = Number(state.bankActual.amount) - pbk.bank;
+    if(Math.abs(d)>=0.005) issues.push(`رصيد البنك الفعلي (${fmt(state.bankActual.amount)}) يختلف عن المسجَّل في النظام (${fmt(pbk.bank)}) بفرق ${fmt(d)} ر.س`);
+    else ok.push('رصيد البنك مطابق لكشف البنك ('+fmt(pbk.bank)+' ر.س)');
+  }
   const bal = Number(state.openingBalance||0) + stored + income - expense;
   return {issues, ok, bal, opening:Number(state.openingBalance||0), stored, income, expense};
 }
