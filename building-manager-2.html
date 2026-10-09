@@ -918,6 +918,32 @@ function closingBalanceAt(k){
   });
   return Number(state.openingBalance||0) + dues + inc - exp;
 }
+
+/* Where the money physically sits. Unit dues (state.payments) have no
+   transaction, so they count as عهدة المدير; transactions carry tx.place
+   (missing = عهدة المدير). Total always equals the dashboard account balance. */
+function placeBalances(){
+  const from = state.bankActiveFrom || '';
+  let bank = Number(state.openingBalance||0), cash = 0, custody = 0;
+  // دفعات الشقق: من شهر تفعيل حساب العمارة فصاعدًا تُحوَّل مباشرة للحساب، وقبله عهدة المدير
+  const start = firstBillingMonthKey();
+  const ids = new Set(state.units.map(u=>u.id));
+  Object.keys(state.payments||{}).forEach(k=>{
+    const r = state.payments[k]; if(!r || !r.paid) return;
+    const [uid,mk] = k.split('|');
+    if(!ids.has(uid) || mk < start) return;
+    const amt = Number(r.amount)||0;
+    if(from && mk >= from) bank += amt; else custody += amt;
+  });
+  (state.transactions||[]).forEach(t=>{
+    const v = (t.type==='income'?1:-1) * (Number(t.amount)||0);
+    let pl = t.place;
+    // تلقائي: الإيراد (مثل إيجار الغرف) من شهر التفعيل يدخل البنك، والمصروف عهدة ما لم يُحدَّد غير ذلك
+    if(!pl) pl = (t.type==='income' && from && (t.date||'').slice(0,7) >= from) ? 'bank' : 'custody';
+    if(pl==='bank') bank += v; else if(pl==='cash') cash += v; else custody += v;
+  });
+  return {bank, cash, custody, total: bank+cash+custody};
+}
 function getMonthlySummary(n){
   // Per-month breakdown for the dashboard table: how much was collected from
   // apartment subscriptions that month (state.payments — these never become
@@ -1186,6 +1212,18 @@ function renderDashboard(main){
   financeNote.style.cssText = 'font-size:11.5px;color:var(--text-dim);margin:8px 0 -4px;padding:0 2px;';
   financeNote.innerHTML = `الرصيد الحالي = الرصيد الافتتاحي ${fmt(state.openingBalance||0)} (${esc(openingBalanceText())}) + (اشتراكات الشقق المحصّلة ${fmt(collected)} + إيجار الغرف والحركات الأخرى ${fmt(income)}) − المصروفات ${fmt(expense)}${state.openingBalance?'':' — بدأ الحساب من صفر ريال'}`;
   main.appendChild(financeNote);
+  const pb = placeBalances();
+  const placeBox = document.createElement('div');
+  placeBox.className = 'panel';
+  placeBox.style.cssText = 'padding:12px 16px;margin-top:12px;';
+  const prow = (label,val,extra)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eef0f2;font-size:13.5px;"><span>${label}${extra?`<div style="font-size:11px;color:#c0392b;">${extra}</div>`:''}</span><b style="color:${val<0?'#c0392b':'#1f2d3d'};">${fmt(val)} ر.س</b></div>`;
+  placeBox.innerHTML = `<div style="font-weight:800;font-size:13.5px;margin-bottom:2px;">أين المبلغ الآن؟</div>
+    ${prow('🏦 حساب العمارة (البنك)',pb.bank)}
+    ${prow('👤 عهدة المدير',pb.custody,pb.custody<0?'سالب = صُرف من مال المدير الشخصي، وهو مستحق له':'')}
+    ${prow('💵 نقد (صندوق)',pb.cash)}
+    <div style="display:flex;justify-content:space-between;padding-top:8px;font-size:14px;"><b>المجموع = رصيد الحساب</b><b>${fmt(pb.total)} ر.س</b></div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">دفعات الشقق وإيجارات الغرف من شهر بدء استلام حساب العمارة (الإعدادات) تُحسب في البنك، وما قبله عهدة المدير. المصروفات عهدة ما لم تحدّد "مكان المبلغ" في الحركة.</div>`;
+  main.appendChild(placeBox);
 
   const chartsRow = document.createElement('div');
   chartsRow.className='charts-row';
@@ -2144,6 +2182,10 @@ function renderSettings(main){
       <input id="f-set-openbaldate" type="month" value="${state.openingBalanceDate||''}">
     </div>
     <div class="field">
+      <label>شهر بدء استلام الدفعات في حساب العمارة</label>
+      <input id="f-set-bankfrom" type="month" value="${state.bankActiveFrom||''}">
+    </div>
+    <div class="field">
       <label>مصدر الرصيد الافتتاحي</label>
       <input id="f-set-openbalnote" type="text" value="${esc(state.openingBalanceNote||'')}" placeholder="${esc(OPENING_NOTE_DEFAULT)}">
     </div>
@@ -2300,6 +2342,7 @@ async function saveSettings(){
   if(billStartInput) state.billingStartMonth = billStartInput.value || '';
   if(openBalInput) state.openingBalance = Number(openBalInput.value)||0;
   const obd = document.getElementById('f-set-openbaldate'); if(obd) state.openingBalanceDate = obd.value || '';
+  const bkf = document.getElementById('f-set-bankfrom'); if(bkf) state.bankActiveFrom = bkf.value || '';
   const obn = document.getElementById('f-set-openbalnote'); if(obn) state.openingBalanceNote = obn.value.trim();
   await saveState();
   render();
@@ -2593,6 +2636,7 @@ function openAuditModal(){
         الرصيد الافتتاحي ${fmt(r.opening)} <span style="font-size:11.5px;color:#666;">(${esc(openingBalanceText())})</span> + تحصيل الشقق ${fmt(r.stored)} + إيرادات الحركات ${fmt(r.income)} − المصروفات ${fmt(r.expense)}<br>
         <b>= الرصيد ${fmt(r.bal)} ر.س</b>
       </div>
+      ${(()=>{const b=placeBalances();return `<div style="background:#f5f7f6;border-radius:8px;padding:10px;margin-bottom:10px;">البنك ${fmt(b.bank)} + عهدة المدير ${fmt(b.custody)} + نقد ${fmt(b.cash)} = <b>${fmt(b.total)} ر.س</b>${Math.abs(b.total-r.bal)>0.005?'<div style="color:#c0392b;">⚠ المجموع لا يطابق الرصيد أعلاه — راجع الحركات</div>':''}</div>`;})()}
       ${r.issues.length?`<div style="color:#c0392b;font-weight:700;">⚠ ملاحظات تحتاج مراجعة:</div>${r.issues.map(x=>`<div style="color:#c0392b;">• ${esc(x)}</div>`).join('')}`:'<div style="color:#1f7a4a;font-weight:700;">✅ لا توجد ملاحظات</div>'}
       <div style="color:#1f7a4a;margin-top:8px;">${r.ok.map(x=>`✔ ${esc(x)}`).join('<br>')}</div>
     </div>
@@ -3371,6 +3415,14 @@ function openTxModal(id){
       </div>
       <div class="field"><label>التاريخ</label><input id="f-txdate" type="date" value="${t?t.date:new Date().toISOString().slice(0,10)}"></div>
     </div>
+    <div class="field"><label>مكان المبلغ</label>
+      <select id="f-txplace">
+        <option value="" ${!t||!t.place?'selected':''}>تلقائي (حسب الإعدادات)</option>
+        <option value="custody" ${t&&t.place==='custody'?'selected':''}>عهدة المدير (حسابي الشخصي)</option>
+        <option value="bank" ${t&&t.place==='bank'?'selected':''}>حساب العمارة (البنك)</option>
+        <option value="cash" ${t&&t.place==='cash'?'selected':''}>نقد (صندوق)</option>
+      </select>
+    </div>
     <div class="field"><label>ملاحظة</label><input id="f-txnote" value="${t?esc(t.note||''):''}"></div>
     <div class="field"><label>صورة الفاتورة أو ملف PDF (اختياري)${t&&t.hasAttachment?' — يوجد مرفق حاليًا، اختر ملف جديد لاستبداله':''}</label><input id="f-txfile" type="file" accept="image/*,application/pdf"></div>
     <div class="modal-actions">
@@ -3424,6 +3476,8 @@ async function saveTx(id){
   const method = document.getElementById('f-txmethod').value;
   const note = document.getElementById('f-txnote').value.trim();
   const date = document.getElementById('f-txdate').value;
+  const placeEl = document.getElementById('f-txplace');
+  const place = placeEl ? placeEl.value : '';
   const fileInput = document.getElementById('f-txfile');
   const file = fileInput && fileInput.files && fileInput.files[0];
 
@@ -3436,9 +3490,9 @@ async function saveTx(id){
       const rp = state.roomPayments && state.roomPayments[tx.roomPayKey];
       if(rp) rp.amount = amount;
     }
-    Object.assign(tx, {type, amount, category, method, note, date});
+    Object.assign(tx, {type, amount, category, method, note, date, place});
   } else {
-    tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date, hasAttachment:false};
+    tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date, place, hasAttachment:false};
     state.transactions.push(tx);
   }
 
