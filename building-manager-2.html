@@ -906,11 +906,7 @@ function getMonthlySummary(n){
   // month (transactions already include driver-room rent when recorded),
   // and the net/remaining for that month alone.
   return lastNMonthKeys(n).map(k=>{
-    let duesCollected = 0;
-    state.units.forEach(u=>{
-      const rec = state.payments[u.id+'|'+k];
-      if(rec && rec.paid) duesCollected += Number(rec.amount)||0;
-    });
+    const duesCollected = paidDuesTotal(k);
     const otherIncome = state.transactions.filter(t=>t.type==='income' && (t.date||'').slice(0,7)===k).reduce((s,t)=>s+Number(t.amount),0);
     const expense = state.transactions.filter(t=>t.type==='expense' && (t.date||'').slice(0,7)===k).reduce((s,t)=>s+Number(t.amount),0);
     const totalIncome = duesCollected + otherIncome;
@@ -1163,7 +1159,7 @@ function renderDashboard(main){
   main.appendChild(stats2);
   const financeNote = document.createElement('div');
   financeNote.style.cssText = 'font-size:11.5px;color:var(--text-dim);margin:8px 0 -4px;padding:0 2px;';
-  financeNote.innerHTML = `الرصيد الحالي = الرصيد الافتتاحي ${fmt(state.openingBalance||0)} + (اشتراكات الشقق المحصّلة ${fmt(collected)} + إيجار الغرف والحركات الأخرى ${fmt(income)}) − المصروفات ${fmt(expense)}${state.openingBalance?'':' — بدأ الحساب من صفر ريال'}`;
+  financeNote.innerHTML = `الرصيد الحالي = الرصيد الافتتاحي ${fmt(state.openingBalance||0)} (${esc(openingBalanceText())}) + (اشتراكات الشقق المحصّلة ${fmt(collected)} + إيجار الغرف والحركات الأخرى ${fmt(income)}) − المصروفات ${fmt(expense)}${state.openingBalance?'':' — بدأ الحساب من صفر ريال'}`;
   main.appendChild(financeNote);
 
   const chartsRow = document.createElement('div');
@@ -1586,6 +1582,18 @@ function lastCompletedMonthKey(){
   const d = new Date(now.getFullYear(), now.getMonth()-1, 1);
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
 }
+
+const OPENING_NOTE_DEFAULT = 'رصيد حساب العمارة البنكي عند الاستلام (الحساب كان مجمّدًا)';
+function openingBalanceText(){
+  const note = (state.openingBalanceNote||'').trim() || OPENING_NOTE_DEFAULT;
+  const d = state.openingBalanceDate;
+  let ds = '';
+  if(d){
+    if(/^\d{4}-\d{2}$/.test(d)) ds = monthLabel(d);
+    else { try{ ds = new Date(d+'T00:00:00').toLocaleDateString('ar-SA'); }catch(e){ ds = d; } }
+  }
+  return note + (ds ? ' — '+(/^\d{4}-\d{2}$/.test(d)?'شهر ':'بتاريخ ')+ds : '');
+}
 function firstBillingMonthKey(){
   if(state.billingStartMonth && !state.billingModeIgnoreStart) return state.billingStartMonth;
   let min = null;
@@ -1645,6 +1653,22 @@ function computeUnitCollected(unit){
     const month = k.split('|')[1];
     if(month < start) return;
     if(state.payments[k].paid) total += Number(state.payments[k].amount)||0;
+  });
+  return total;
+}
+/* Single source of truth for "dues collected": same rule as computeUnitCollected
+   (months before the first billing month are ignored). monthKey '' = all months. */
+function paidDuesTotal(monthKey){
+  const start = firstBillingMonthKey();
+  const unitIds = new Set(state.units.map(u=>u.id));
+  let total = 0;
+  Object.keys(state.payments||{}).forEach(k=>{
+    const rec = state.payments[k];
+    if(!rec || !rec.paid) return;
+    const [uid,mk] = k.split('|');
+    if(!unitIds.has(uid) || mk < start) return;
+    if(monthKey && mk!==monthKey) return;
+    total += Number(rec.amount)||0;
   });
   return total;
 }
@@ -2086,7 +2110,15 @@ function renderSettings(main){
     <div class="panel-title">فترة حساب المستحقات</div>
     <div class="field">
       <label>الرصيد الافتتاحي للحساب (ر.س)</label>
-      <input id="f-set-openbal" type="number" value="${state.openingBalance||0}">
+      <input id="f-set-openbal" type="number" step="0.01" value="${state.openingBalance||0}">
+    </div>
+    <div class="field">
+      <label>شهر الرصيد الافتتاحي (شهر الاستلام)</label>
+      <input id="f-set-openbaldate" type="month" value="${state.openingBalanceDate||''}">
+    </div>
+    <div class="field">
+      <label>مصدر الرصيد الافتتاحي</label>
+      <input id="f-set-openbalnote" type="text" value="${esc(state.openingBalanceNote||'')}" placeholder="${esc(OPENING_NOTE_DEFAULT)}">
     </div>
     <p style="font-size:11.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">
       المبلغ اللي كان موجود في حساب العمارة قبل ما تبدأ تسجّل الحركات في النظام. لو الحساب بدأ من صفر ريال، خله 0.
@@ -2240,6 +2272,8 @@ async function saveSettings(){
   if(name) state.buildingName = name;
   if(billStartInput) state.billingStartMonth = billStartInput.value || '';
   if(openBalInput) state.openingBalance = Number(openBalInput.value)||0;
+  const obd = document.getElementById('f-set-openbaldate'); if(obd) state.openingBalanceDate = obd.value || '';
+  const obn = document.getElementById('f-set-openbalnote'); if(obn) state.openingBalanceNote = obn.value.trim();
   await saveState();
   render();
   alert('تم حفظ الإعدادات ✅');
@@ -2474,10 +2508,77 @@ function printDriverRoomsReport(){
   w.document.close();
 }
 
+/* ---------------- فحص مالي (Audit) ---------------- */
+function auditFinance(){
+  const issues = [], ok = [];
+  const tx = state.transactions||[];
+  // 1) دفعات الغرف المدفوعة ↔ حركات الإيراد
+  let missing=0, diffAmt=0, orphan=0;
+  Object.keys(state.roomPayments||{}).forEach(k=>{
+    const rec = state.roomPayments[k]; if(!rec.paid) return;
+    const t = tx.find(x=>x.roomPayKey===k);
+    if(!t) missing++; else if(Number(t.amount)!==Number(rec.amount)) diffAmt++;
+  });
+  tx.filter(t=>t.roomPayKey).forEach(t=>{
+    const rec = (state.roomPayments||{})[t.roomPayKey];
+    if(!rec || !rec.paid) orphan++;
+  });
+  if(missing) issues.push(`${missing} دفعة غرفة مدفوعة بدون حركة إيراد (في صفحة غرف السواقين اضغط "🔄 مزامنة الإيرادات")`);
+  if(diffAmt) issues.push(`${diffAmt} دفعة غرفة مبلغها يختلف عن حركة الإيراد المرتبطة`);
+  if(orphan) issues.push(`${orphan} حركة إيراد غرفة لدفعة غير مدفوعة أو محذوفة`);
+  if(!missing && !diffAmt && !orphan) ok.push('دفعات الغرف مطابقة لحركات الإيراد');
+  // 2) تحصيل الشقق: المخزّن مقابل المحسوب من الدفعات
+  const stored = state.units.reduce((s,u)=>s+Number(u.collected||0),0);
+  const calc = paidDuesTotal('');
+  if(stored!==calc) issues.push(`إجمالي تحصيل الشقق المخزّن (${fmt(stored)}) يختلف عن المحسوب من الدفعات (${fmt(calc)})`);
+  else ok.push('تحصيل الشقق مطابق للدفعات ('+fmt(calc)+' ر.س)');
+  // 3) دفعات شقق قبل شهر بدء الفوترة (لا تدخل في الأرصدة)
+  const start = firstBillingMonthKey();
+  const ids = new Set(state.units.map(u=>u.id));
+  let early=0, earlyAmt=0;
+  Object.keys(state.payments||{}).forEach(k=>{
+    const [uid,mk]=k.split('|'); const r=state.payments[k];
+    if(ids.has(uid) && r.paid && mk<start){ early++; earlyAmt+=Number(r.amount)||0; }
+  });
+  if(early) issues.push(`${early} دفعة شقق (${fmt(earlyAmt)} ر.س) قبل شهر بدء الفوترة ${start} ولا تُحتسب في الإيراد`);
+  // 4) حركات غير سليمة
+  const bad = tx.filter(t=>!(Number(t.amount)>0) || !t.date || !/^\d{4}-\d{2}-\d{2}/.test(t.date));
+  if(bad.length) issues.push(`${bad.length} حركة بمبلغ صفري/سالب أو بتاريخ غير صالح`); else ok.push('كل الحركات بمبالغ وتواريخ سليمة');
+  // 5) تكرار محتمل
+  const seen = {}; let dups=0;
+  tx.forEach(t=>{ const k=[t.type,t.date,t.amount,t.category,t.note].join('|'); if(seen[k]) dups++; seen[k]=1; });
+  if(dups) issues.push(`${dups} حركة مكررة محتملة (نفس النوع والتاريخ والمبلغ والفئة والملاحظة)`); else ok.push('لا توجد حركات مكررة');
+  // 6) مصروفات بدون سند
+  const linked = new Set((state.vouchers||[]).map(v=>v.txId).filter(Boolean));
+  const noV = tx.filter(t=>t.type==='expense' && !linked.has(t.id));
+  if(noV.length) issues.push(`${noV.length} مصروف بدون سند صرف (${fmt(noV.reduce((s,t)=>s+Number(t.amount),0))} ر.س)`); else ok.push('كل المصروفات لها سندات صرف');
+  // 7) مطابقة الرصيد
+  const income = tx.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const expense = tx.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const bal = Number(state.openingBalance||0) + stored + income - expense;
+  return {issues, ok, bal, opening:Number(state.openingBalance||0), stored, income, expense};
+}
+function openAuditModal(){
+  const r = auditFinance();
+  showModal(`<h3 style="margin:0 0 10px;">🔍 الفحص المالي</h3>
+    <div style="font-size:13px;line-height:1.9;">
+      <div style="background:#f5f7f6;border-radius:8px;padding:10px;margin-bottom:10px;">
+        الرصيد الافتتاحي ${fmt(r.opening)} <span style="font-size:11.5px;color:#666;">(${esc(openingBalanceText())})</span> + تحصيل الشقق ${fmt(r.stored)} + إيرادات الحركات ${fmt(r.income)} − المصروفات ${fmt(r.expense)}<br>
+        <b>= الرصيد ${fmt(r.bal)} ر.س</b>
+      </div>
+      ${r.issues.length?`<div style="color:#c0392b;font-weight:700;">⚠ ملاحظات تحتاج مراجعة:</div>${r.issues.map(x=>`<div style="color:#c0392b;">• ${esc(x)}</div>`).join('')}`:'<div style="color:#1f7a4a;font-weight:700;">✅ لا توجد ملاحظات</div>'}
+      <div style="color:#1f7a4a;margin-top:8px;">${r.ok.map(x=>`✔ ${esc(x)}`).join('<br>')}</div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px;"><button class="btn-ghost" onclick="closeModal()">إغلاق</button></div>`);
+}
+
 let financeFilter = 'all';
+let financeCarry = (()=>{try{return localStorage.getItem('financeCarry')!=='0';}catch(e){return true;}})(); // إيراد الشهر السابق يغطي مصروفات الشهر الحالي
+function toggleFinanceCarry(){ financeCarry=!financeCarry; try{localStorage.setItem('financeCarry',financeCarry?'1':'0');}catch(e){} render(); }
 let financeMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter)
 function renderFinance(main){
   topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة — حدد شهرًا لعزل حركاته، أو اعرض كل الأشهر معًا.',
+    '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="openAuditModal()">🔍 فحص مالي</button>'+
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printFinanceReport()">🖨 طباعة التقرير المالي</button>'+
     '<button class="btn" onclick="openTxModal()">+ إضافة حركة</button>');
 
@@ -2485,14 +2586,18 @@ function renderFinance(main){
   filters.className='filters-row';
   filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">الشهر:</label>
     <input type="month" id="financeMonthPicker" value="${financeMonth||currentMonthKey()}" ${financeMonth?'':'disabled'}>
-    <button class="btn-ghost btn-sm" onclick="financeMonth=financeMonth?'':currentMonthKey();render();">${financeMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>`;
+    <button class="btn-ghost btn-sm" onclick="financeMonth=financeMonth?'':currentMonthKey();render();">${financeMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
+    ${financeMonth?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-right:8px;cursor:pointer;"><input type="checkbox" ${financeCarry?'checked':''} onchange="toggleFinanceCarry()"> إيراد الشهر السابق يُصرف في هذا الشهر</label>`:''}`;
   main.appendChild(filters);
   filters.querySelector('#financeMonthPicker').onchange = (e)=>{ financeMonth = e.target.value; render(); };
 
   // Month filter applies first (isolates the selected month, like الدفعات الشهرية), then the income/expense tab on top of it.
   const monthScoped = financeMonth ? state.transactions.filter(t=>(t.date||'').slice(0,7)===financeMonth) : state.transactions;
 
-  const income = monthScoped.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  // الشهر الذي يأتي منه الإيراد: السابق عند تفعيل الترحيل، وإلا نفس الشهر
+  const srcMonth = financeMonth ? (financeCarry ? monthBefore(financeMonth) : financeMonth) : '';
+  const srcScoped = srcMonth ? state.transactions.filter(t=>(t.date||'').slice(0,7)===srcMonth) : state.transactions;
+  const income = srcScoped.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = monthScoped.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
 
   // Audit: سند الصرف هو المرجع — أي مصروف ما له سند مرتبط يظهر هنا، سواء
@@ -2510,20 +2615,13 @@ function renderFinance(main){
     main.appendChild(banner);
   }
 
-  const unitIds = new Set(state.units.map(u=>u.id));
-  const duesIncome = Object.entries(state.payments||{}).reduce((sum,[key,rec])=>{
-    if(!rec || !rec.paid) return sum;
-    const [uid,mk] = key.split('|');
-    if(!unitIds.has(uid)) return sum;
-    if(financeMonth && mk!==financeMonth) return sum;
-    return sum + (Number(rec.amount)||0);
-  },0);
+  const duesIncome = paidDuesTotal(srcMonth);
   const totalIncomeAll = income + duesIncome; // transactions + monthly dues
   const stats = document.createElement('div');
   stats.className='stats-row';
   stats.style.gridTemplateColumns='repeat(3,1fr)';
   stats.innerHTML = `
-    <div class="stat-card tint-green"><div class="lbl">الإيرادات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(totalIncomeAll)} ر.س</div></div>
+    <div class="stat-card tint-green"><div class="lbl">الإيرادات${srcMonth?' — '+monthLabel(srcMonth):''}</div>${financeMonth&&financeCarry?`<div style="font-size:11px;color:var(--text-dim);">تُصرف في ${monthLabel(financeMonth)}</div>`:''}<div class="num">${fmt(totalIncomeAll)} ر.س</div></div>
     <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(expense)} ر.س</div></div>
     ${(()=>{const n=totalIncomeAll-expense;const mo=financeMonth?' — '+monthLabel(financeMonth):'';
       if(n<0) return `<div class="stat-card" style="background:var(--red-tint);border-color:#e8b4af;border-width:1.5px;"><div class="lbl" style="color:#c0392b;">⚠ عجز${mo}</div><div class="num" style="color:#c0392b;">${fmt(Math.abs(n))} ر.س</div><div style="font-size:11.5px;color:#c0392b;margin-top:4px;font-weight:600;">المصروفات أكبر من الإيرادات</div></div>`;
@@ -2534,13 +2632,13 @@ function renderFinance(main){
 
   /* Revenue breakdown box: monthly dues (state.payments — never stored as
      transactions) + driver-room rent (income transactions linked to a room). */
-  const roomsRent = monthScoped.filter(t=>t.type==='income' && (t.roomPayKey || t.roomId || /^غرفة\s*\d/.test(t.category||''))).reduce((s,t)=>s+Number(t.amount),0);
+  const roomsRent = srcScoped.filter(t=>t.type==='income' && (t.roomPayKey || t.roomId || /^غرفة\s*\d/.test(t.category||''))).reduce((s,t)=>s+Number(t.amount),0);
   const otherInc = income - roomsRent;
   const brk = document.createElement('div');
   brk.className='panel';
   brk.style.cssText='padding:14px 16px;';
   const brow = (ico,label,val,clr)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eef0f2;"><span style="font-size:14px;font-weight:600;">${ico} ${label}</span><b style="color:${clr};font-size:16px;">${fmt(val)} ر.س</b></div>`;
-  brk.innerHTML = `<div style="font-weight:800;font-size:14px;margin-bottom:4px;color:var(--text-dim);">تفاصيل مصادر الإيراد${financeMonth?' — '+monthLabel(financeMonth):''}</div>
+  brk.innerHTML = `<div style="font-weight:800;font-size:14px;margin-bottom:4px;color:var(--text-dim);">تفاصيل مصادر الإيراد${srcMonth?' — '+monthLabel(srcMonth):''}</div>
     ${brow('💳','الدفعات الشهرية (اشتراكات الشقق)',duesIncome,'#1f7a4a')}
     ${brow('🚗','إيجارات الغرف',roomsRent,'#1f7a4a')}
     ${otherInc>0?brow('➕','إيرادات أخرى',otherInc,'#555'):''}
@@ -2587,8 +2685,16 @@ function buildFinanceReportHTML(){
   // exactly like what's shown on screen, so the printed report matches the view.
   const monthScoped = financeMonth ? state.transactions.filter(t=>(t.date||'').slice(0,7)===financeMonth) : state.transactions;
   const scoped = monthScoped.filter(t=>financeFilter==='all'||t.type===financeFilter);
-  const income = scoped.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
-  const expense = scoped.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  // نفس حساب الشاشة: الإيراد من الشهر السابق عند تفعيل الترحيل + الدفعات الشهرية
+  const srcMonth = financeMonth ? (financeCarry ? monthBefore(financeMonth) : financeMonth) : '';
+  const srcScoped = srcMonth ? state.transactions.filter(t=>(t.date||'').slice(0,7)===srcMonth) : state.transactions;
+  const txIncome = srcScoped.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+  const roomsRent = srcScoped.filter(t=>t.type==='income' && (t.roomPayKey || t.roomId || /^غرفة\s*\d/.test(t.category||''))).reduce((s,t)=>s+Number(t.amount),0);
+  const otherInc = txIncome - roomsRent;
+  const duesIncome = paidDuesTotal(srcMonth);
+  const income = txIncome + duesIncome;
+  const expense = monthScoped.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+  const carryNote = (financeMonth && financeCarry) ? `إيرادات ${monthLabel(srcMonth)} تُصرف في ${monthLabel(financeMonth)}` : '';
   const today = new Date().toLocaleDateString('ar-SA');
   const scopeLabel = (financeMonth?monthLabel(financeMonth):'كل الأشهر') + (financeFilter==='all'?'':financeFilter==='income'?' (إيرادات فقط)':' (مصروفات فقط)');
   const rows = [...scoped].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
@@ -2611,11 +2717,20 @@ function buildFinanceReportHTML(){
     </div>
     <table class="stmt-info">
       <tr>
-        ${financeFilter!=='expense'?`<td><b>إجمالي الإيرادات:</b> ${fmt(income)} ر.س</td>`:''}
+        ${financeFilter!=='expense'?`<td><b>إجمالي الإيرادات${srcMonth?' ('+esc(monthLabel(srcMonth))+')':''}:</b> ${fmt(income)} ر.س</td>`:''}
         ${financeFilter!=='income'?`<td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>`:''}
         ${financeFilter==='all'?`<td><b>${(income-expense)<0?'العجز':(income-expense)>0?'الفائض':'الصافي'}:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${(income-expense)<0?'⚠ ':''}${fmt(Math.abs(income-expense))} ر.س</span></td>`:''}
       </tr>
     </table>
+    ${financeFilter!=='expense'?`<table class="stmt-info">
+      <tr>
+        <td><b>الدفعات الشهرية (الشقق):</b> ${fmt(duesIncome)} ر.س</td>
+        <td><b>إيجارات الغرف:</b> ${fmt(roomsRent)} ر.س</td>
+        ${otherInc>0?`<td><b>إيرادات أخرى:</b> ${fmt(otherInc)} ر.س</td>`:''}
+      </tr>
+    </table>`:''}
+    ${carryNote?`<div style="font-size:12px;margin:6px 0 10px;color:#555;">ملاحظة: ${esc(carryNote)}. الجدول أدناه يعرض حركات ${esc(monthLabel(financeMonth))}.</div>`:''}
+    <div style="font-size:12px;margin:0 0 10px;color:#555;">الرصيد الافتتاحي للنظام: ${fmt(state.openingBalance||0)} ر.س — ${esc(openingBalanceText())}</div>
     <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="6">لا توجد حركات</td></tr>'}</tbody>
@@ -3288,6 +3403,12 @@ async function saveTx(id){
   let tx;
   if(id){
     tx = state.transactions.find(x=>x.id===id);
+    if(tx.roomPayKey){
+      // حركة مرتبطة بدفعة غرفة: تبقى إيرادًا ويتزامن مبلغها مع صفحة الغرف
+      if(type!=='income'){ alert('هذه الحركة مرتبطة بدفعة إيجار غرفة ولا يمكن تحويلها إلى مصروف. احذفها أو عدّل الدفعة من صفحة غرف السواقين.'); return; }
+      const rp = state.roomPayments && state.roomPayments[tx.roomPayKey];
+      if(rp) rp.amount = amount;
+    }
     Object.assign(tx, {type, amount, category, method, note, date});
   } else {
     tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date, hasAttachment:false};
@@ -3322,6 +3443,10 @@ async function saveTx(id){
 }
 async function deleteTx(id){
   const tx = state.transactions.find(t=>t.id===id);
+  if(tx && tx.roomPayKey && state.roomPayments && state.roomPayments[tx.roomPayKey]){
+    // حذف حركة إيجار غرفة = إلغاء الدفعة في صفحة الغرف، حتى لا يختلف الرقمان
+    state.roomPayments[tx.roomPayKey].paid = false;
+  }
   if(tx && tx.roomId){
     const r = state.driverRooms.find(x=>x.id===tx.roomId);
     if(r) r.collected = Math.max(0, Number(r.collected||0) - Number(tx.amount||0));
