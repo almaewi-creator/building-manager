@@ -2533,7 +2533,7 @@ function renderFinance(main){
     if(financeMonth && mk!==financeMonth) return sum;
     return sum + (Number(rec.amount)||0);
   },0);
-  const roomsRent = monthScoped.filter(t=>t.type==='income' && t.roomId).reduce((s,t)=>s+Number(t.amount),0);
+  const roomsRent = monthScoped.filter(t=>t.type==='income' && (t.roomPayKey || t.roomId || /^غرفة\s*\d/.test(t.category||''))).reduce((s,t)=>s+Number(t.amount),0);
   const otherInc = income - roomsRent;
   const brk = document.createElement('div');
   brk.className='panel';
