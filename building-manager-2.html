@@ -2515,7 +2515,10 @@ function renderFinance(main){
   stats.innerHTML = `
     <div class="stat-card tint-green"><div class="lbl">الإيرادات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(income)} ر.س</div></div>
     <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(expense)} ر.س</div></div>
-    <div class="stat-card tint-blue"><div class="lbl">الصافي${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(income-expense)} ر.س</div></div>
+    ${(()=>{const n=income-expense;const mo=financeMonth?' — '+monthLabel(financeMonth):'';
+      if(n<0) return `<div class="stat-card" style="background:var(--red-tint);border-color:#e8b4af;border-width:1.5px;"><div class="lbl" style="color:#c0392b;">⚠ عجز${mo}</div><div class="num" style="color:#c0392b;">${fmt(Math.abs(n))} ر.س</div><div style="font-size:11.5px;color:#c0392b;margin-top:4px;font-weight:600;">المصروفات أكبر من الإيرادات</div></div>`;
+      if(n>0) return `<div class="stat-card tint-green"><div class="lbl">فائض${mo}</div><div class="num" style="color:#1f7a4a;">${fmt(n)} ر.س</div></div>`;
+      return `<div class="stat-card tint-blue"><div class="lbl">الصافي${mo}</div><div class="num">${fmt(0)} ر.س</div></div>`;})()}
   `;
   main.appendChild(stats);
 
@@ -2585,7 +2588,7 @@ function buildFinanceReportHTML(){
       <tr>
         ${financeFilter!=='expense'?`<td><b>إجمالي الإيرادات:</b> ${fmt(income)} ر.س</td>`:''}
         ${financeFilter!=='income'?`<td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>`:''}
-        ${financeFilter==='all'?`<td><b>الصافي:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${fmt(income-expense)} ر.س</span></td>`:''}
+        ${financeFilter==='all'?`<td><b>${(income-expense)<0?'العجز':(income-expense)>0?'الفائض':'الصافي'}:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${(income-expense)<0?'⚠ ':''}${fmt(Math.abs(income-expense))} ر.س</span></td>`:''}
       </tr>
     </table>
     <div class="stmt-table-scroll"><table class="stmt-table">
