@@ -923,6 +923,51 @@ function closingBalanceAt(k){
    transaction, so they count as عهدة المدير; transactions carry tx.place
    (missing = عهدة المدير). Total always equals the dashboard account balance. */
 
+
+const PLACE_LABEL = {bank:'حساب العمارة (البنك)', custody:'عهدة المدير', cash:'نقد (صندوق)'};
+function openTransferModal(){
+  const opts = (sel)=>Object.keys(PLACE_LABEL).map(k=>`<option value="${k}" ${k===sel?'selected':''}>${PLACE_LABEL[k]}</option>`).join('');
+  showModal(`<h3>تحويل بين الأماكن</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-top:-4px;">مثل: تحويل من حساب العمارة إلى حسابك لسداد ما صرفته من مالك. لا يُحسب إيرادًا ولا مصروفًا، فقط ينقل المبلغ من مكان لآخر.</p>
+    <div class="two-col">
+      <div class="field"><label>من</label><select id="f-trfrom">${opts('bank')}</select></div>
+      <div class="field"><label>إلى</label><select id="f-trto">${opts('custody')}</select></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>المبلغ (ر.س)</label><input id="f-tramount" type="number" step="0.01"></div>
+      <div class="field"><label>التاريخ</label><input id="f-trdate" type="date" value="${todayISODate()}"></div>
+    </div>
+    <div class="field"><label>ملاحظة</label><input id="f-trnote" placeholder="مثال: سداد جزء من عهدة المدير"></div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeModal()">إلغاء</button><button class="btn" onclick="saveTransfer()">حفظ</button></div>`);
+}
+async function saveTransfer(){
+  const from = document.getElementById('f-trfrom').value, to = document.getElementById('f-trto').value;
+  const amount = Number(document.getElementById('f-tramount').value)||0;
+  const date = document.getElementById('f-trdate').value;
+  const note = document.getElementById('f-trnote').value.trim();
+  if(from===to){ alert('اختر مكانين مختلفين'); return; }
+  if(!(amount>0)){ alert('اكتب مبلغًا أكبر من صفر'); return; }
+  if(!state.transfers) state.transfers = [];
+  state.transfers.push({id:'tr'+Date.now(), from, to, amount, date, note});
+  await saveState(); closeModal(); render();
+}
+async function deleteTransfer(id){
+  if(!confirm('حذف هذا التحويل؟')) return;
+  state.transfers = (state.transfers||[]).filter(t=>t.id!==id);
+  await saveState(); render();
+}
+
+/* مستحقات المدير غير المصروفة: بند إفصاحي فقط، لا يدخل في الرصيد ولا في المصروفات */
+function getManagerSalary(){
+  return state.managerSalary || {amount:1500, startMonth:'2026-09', status:'deferred'};
+}
+function managerSalaryText(){
+  const m = getManagerSalary(); const amt = Number(m.amount)||0;
+  if(!(amt>0) || !m.startMonth) return '';
+  if(m.status==='waived') return `تنازل المدير عن راتبه الشهري (${fmt(amt)} ر.س) اعتبارًا من ${monthLabel(m.startMonth)} — لم يُصرف ولا يُسجَّل التزامًا.`;
+  const months = monthsBetweenInclusive(m.startMonth, lastCompletedMonthKey()).length;
+  return `مستحقات المدير غير المصروفة: ${fmt(amt)} ر.س شهريًا منذ ${monthLabel(m.startMonth)} — المتراكم حتى نهاية ${monthLabel(lastCompletedMonthKey())}: ${fmt(months*amt)} ر.س (مؤجلة، التزام على الجمعية غير مصروف ولا يدخل في المصروفات أو الرصيد).`;
+}
 function setBankActual(){
   const cur = state.bankActual && state.bankActual.amount!==undefined ? state.bankActual.amount : '';
   const v = prompt('اكتب رصيد حساب العمارة الآن كما يظهر في تطبيق البنك (بالريال):', cur);
@@ -951,6 +996,12 @@ function placeBalances(){
     // تلقائي: الإيراد (مثل إيجار الغرف) من شهر التفعيل يدخل البنك، والمصروف عهدة ما لم يُحدَّد غير ذلك
     if(!pl) pl = (t.type==='income' && from && (t.date||'').slice(0,7) >= from) ? 'bank' : 'custody';
     if(pl==='bank') bank += v; else if(pl==='cash') cash += v; else custody += v;
+  });
+  // تحويلات بين الأماكن (مثل سداد عهدة المدير من حساب العمارة): لا هي إيراد ولا مصروف
+  (state.transfers||[]).forEach(tr=>{
+    const a = Number(tr.amount)||0;
+    const mv = (pl,v)=>{ if(pl==='bank') bank+=v; else if(pl==='cash') cash+=v; else if(pl==='custody') custody+=v; };
+    mv(tr.from,-a); mv(tr.to,a);
   });
   return {bank, cash, custody, total: bank+cash+custody};
 }
@@ -1235,9 +1286,18 @@ function renderDashboard(main){
       return `<div style="padding:6px 0;border-bottom:1px solid #eef0f2;font-size:12.5px;">رصيد البنك الفعلي حسب كشفك${ds?' ('+esc(ds)+')':''}: <b>${fmt(ba.amount)} ر.س</b> — ${okm?'<span style="color:#1f7a4a;font-weight:700;">✅ مطابق</span>':'<span style="color:#c0392b;font-weight:700;">⚠ الفرق '+fmt(diff)+' ر.س (حركة ناقصة أو غير مطابقة)</span>'} <button class="btn-ghost btn-sm" onclick="setBankActual()">تحديث</button></div>`;})()}
     ${prow('👤 عهدة المدير',pb.custody,pb.custody<0?'سالب = صُرف من مال المدير الشخصي، وهو مستحق له':'')}
     ${prow('💵 نقد (صندوق)',pb.cash)}
+    ${(state.transfers||[]).length?`<div style="font-size:12px;padding:6px 0;border-bottom:1px solid #eef0f2;"><b>تحويلات بين الأماكن:</b>${(state.transfers||[]).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<div style="display:flex;justify-content:space-between;gap:6px;margin-top:4px;"><span>${esc(t.date||'')} — ${esc(PLACE_LABEL[t.from]||t.from)} ← ${esc(PLACE_LABEL[t.to]||t.to)}${t.note?' ('+esc(t.note)+')':''}</span><span><b>${fmt(t.amount)} ر.س</b> <a href="#" onclick="deleteTransfer('${t.id}');return false;" style="color:#c0392b;">حذف</a></span></div>`).join('')}</div>`:''}
+    <div style="padding:6px 0;"><button class="btn-ghost btn-sm" onclick="openTransferModal()">↔ تسجيل تحويل بين الأماكن</button></div>
     <div style="display:flex;justify-content:space-between;padding-top:8px;font-size:14px;"><b>المجموع = رصيد الحساب</b><b>${fmt(pb.total)} ر.س</b></div>
     <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">دفعات الشقق وإيجارات الغرف من شهر بدء استلام حساب العمارة (الإعدادات) تُحسب في البنك، وما قبله عهدة المدير. المصروفات عهدة ما لم تحدّد "مكان المبلغ" في الحركة.</div>`;
   main.appendChild(placeBox);
+  const msTxt = managerSalaryText();
+  if(msTxt){
+    const msNote = document.createElement('div');
+    msNote.style.cssText = 'font-size:12px;line-height:1.8;background:#fff8e6;border:1px solid #eddcb0;border-radius:10px;padding:10px 14px;margin-top:12px;';
+    msNote.innerHTML = '📌 '+esc(msTxt);
+    main.appendChild(msNote);
+  }
 
   const chartsRow = document.createElement('div');
   chartsRow.className='charts-row';
@@ -2200,6 +2260,14 @@ function renderSettings(main){
       <input id="f-set-bankfrom" type="month" value="${state.bankActiveFrom||''}">
     </div>
     <div class="field">
+      <label>راتب المدير الشهري غير المصروف (ر.س)</label>
+      <input id="f-set-salary" type="number" step="0.01" value="${getManagerSalary().amount||0}">
+    </div>
+    <div class="two-col">
+      <div class="field"><label>من شهر</label><input id="f-set-salarystart" type="month" value="${getManagerSalary().startMonth||''}"></div>
+      <div class="field"><label>الحالة</label><select id="f-set-salarystatus"><option value="deferred" ${getManagerSalary().status!=='waived'?'selected':''}>مؤجَّل (حق باقٍ)</option><option value="waived" ${getManagerSalary().status==='waived'?'selected':''}>تنازل</option></select></div>
+    </div>
+    <div class="field">
       <label>مصدر الرصيد الافتتاحي</label>
       <input id="f-set-openbalnote" type="text" value="${esc(state.openingBalanceNote||'')}" placeholder="${esc(OPENING_NOTE_DEFAULT)}">
     </div>
@@ -2356,6 +2424,8 @@ async function saveSettings(){
   if(billStartInput) state.billingStartMonth = billStartInput.value || '';
   if(openBalInput) state.openingBalance = Number(openBalInput.value)||0;
   const obd = document.getElementById('f-set-openbaldate'); if(obd) state.openingBalanceDate = obd.value || '';
+  const sal = document.getElementById('f-set-salary');
+  if(sal) state.managerSalary = {amount:Number(sal.value)||0, startMonth:(document.getElementById('f-set-salarystart')||{}).value||'', status:(document.getElementById('f-set-salarystatus')||{}).value||'deferred'};
   const bkf = document.getElementById('f-set-bankfrom'); if(bkf) state.bankActiveFrom = bkf.value || '';
   const obn = document.getElementById('f-set-openbalnote'); if(obn) state.openingBalanceNote = obn.value.trim();
   await saveState();
@@ -2825,6 +2895,7 @@ function buildFinanceReportHTML(){
       </tr>
     </table>`:''}
     ${carryNote?`<div style="font-size:12px;margin:6px 0 10px;color:#555;">ملاحظة: ${esc(carryNote)}. الجدول أدناه يعرض حركات ${esc(monthLabel(financeMonth))}.</div>`:''}
+    ${managerSalaryText()?`<div style="font-size:12px;margin:0 0 10px;color:#555;">📌 ${esc(managerSalaryText())}</div>`:''}
     <div style="font-size:12px;margin:0 0 10px;color:#555;">الرصيد الافتتاحي للنظام: ${fmt(state.openingBalance||0)} ر.س — ${esc(openingBalanceText())}</div>
     <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th></tr></thead>
