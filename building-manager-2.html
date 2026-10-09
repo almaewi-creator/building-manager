@@ -899,6 +899,25 @@ function lastNMonthKeys(n){
   }
   return out;
 }
+
+/* Closing balance at the END of month k: opening + everything received up to k
+   (dues keyed <=k, income tx dated <=k) - expenses dated <=k. */
+function closingBalanceAt(k){
+  const start = firstBillingMonthKey();
+  const ids = new Set(state.units.map(u=>u.id));
+  let dues = 0;
+  Object.keys(state.payments||{}).forEach(key=>{
+    const r = state.payments[key]; if(!r || !r.paid) return;
+    const [uid,mk] = key.split('|');
+    if(ids.has(uid) && mk>=start && mk<=k) dues += Number(r.amount)||0;
+  });
+  let inc=0, exp=0;
+  state.transactions.forEach(t=>{
+    const m=(t.date||'').slice(0,7); if(!m || m>k) return;
+    if(t.type==='income') inc+=Number(t.amount)||0; else if(t.type==='expense') exp+=Number(t.amount)||0;
+  });
+  return Number(state.openingBalance||0) + dues + inc - exp;
+}
 function getMonthlySummary(n){
   // Per-month breakdown for the dashboard table: how much was collected from
   // apartment subscriptions that month (state.payments — these never become
@@ -916,7 +935,7 @@ function getMonthlySummary(n){
       const pk = monthBefore(k);
       fundingIncome = paidDuesTotal(pk) + state.transactions.filter(t=>t.type==='income' && (t.date||'').slice(0,7)===pk).reduce((s,t)=>s+Number(t.amount),0);
     }
-    return {month:k, duesCollected, otherIncome, totalIncome, expense, fundingIncome, net: fundingIncome - expense};
+    return {month:k, duesCollected, otherIncome, totalIncome, expense, fundingIncome, net: fundingIncome - expense, closing: closingBalanceAt(k)};
   });
 }
 function getMonthlyFinance(n){
@@ -1197,12 +1216,14 @@ function renderDashboard(main){
       <td><b style="color:#1f7a4a;">${fmt(m.totalIncome)} ر.س</b></td>
       <td><b style="color:#c0392b;">${fmt(m.expense)} ر.س</b></td>
       <td><b style="${m.net<0?'color:#c0392b;':'color:#1f7a4a;'}">${m.net<0?'⚠ عجز ':''}${fmt(Math.abs(m.net))} ر.س</b></td>
+      <td><b style="${m.closing<0?'color:#c0392b;':'color:#1f2d3d;'}">${fmt(m.closing)} ر.س</b></td>
     </tr>`).join('');
   monthlyPanel.innerHTML = `<div class="panel-title">ملخص كل شهر — الدخل والمصروفات والباقي</div>
     <div style="overflow-x:auto;">
-    <table><thead><tr><th>الشهر</th><th>دفعات شهرية محصّلة</th><th>إيرادات أخرى</th><th>إجمالي الدخل</th><th>المصروفات</th><th>${financeCarry?'الباقي (إيراد الشهر السابق − مصروفات الشهر)':'الباقي من الشهر'}</th></tr></thead>
-    <tbody>${msRows||'<tr><td colspan="6" class="empty">لا توجد بيانات بعد</td></tr>'}</tbody></table>
-    </div>`;
+    <table><thead><tr><th>الشهر</th><th>دفعات شهرية محصّلة</th><th>إيرادات أخرى</th><th>إجمالي الدخل</th><th>المصروفات</th><th>${financeCarry?'الباقي (إيراد الشهر السابق − مصروفات الشهر)':'الباقي من الشهر'}</th><th>الرصيد في نهاية الشهر</th></tr></thead>
+    <tbody>${msRows||'<tr><td colspan="7" class="empty">لا توجد بيانات بعد</td></tr>'}</tbody></table>
+    </div>
+    <p style="font-size:11.5px;color:var(--text-dim);margin:8px 0 0;">الرصيد في نهاية الشهر = الرصيد الافتتاحي + كل ما حُصّل حتى نهاية ذلك الشهر − كل المصروفات حتى نهايته. وآخر رصيد يطابق "رصيد الحساب الحالي" أعلاه.</p>`;
   main.appendChild(monthlyPanel);
 
   const debtPanel = document.createElement('div');
@@ -2579,7 +2600,7 @@ function openAuditModal(){
 }
 
 let financeFilter = 'all';
-let financeCarry = (()=>{try{return localStorage.getItem('financeCarry')!=='0';}catch(e){return true;}})(); // إيراد الشهر السابق يغطي مصروفات الشهر الحالي
+let financeCarry = (()=>{try{return localStorage.getItem('financeCarry')==='1';}catch(e){return false;}})(); // إيراد الشهر السابق يغطي مصروفات الشهر الحالي
 function toggleFinanceCarry(){ financeCarry=!financeCarry; try{localStorage.setItem('financeCarry',financeCarry?'1':'0');}catch(e){} render(); }
 let financeMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter)
 function renderFinance(main){
