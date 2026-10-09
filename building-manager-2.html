@@ -2263,28 +2263,6 @@ function renderDriverRooms(main){
   `;
   main.appendChild(stats);
 
-  /* Revenue breakdown box: monthly dues (state.payments — never stored as
-     transactions) + driver-room rent (income transactions linked to a room). */
-  const unitIds = new Set(state.units.map(u=>u.id));
-  const duesIncome = Object.entries(state.payments||{}).reduce((sum,[key,rec])=>{
-    if(!rec || !rec.paid) return sum;
-    const [uid,mk] = key.split('|');
-    if(!unitIds.has(uid)) return sum;
-    if(financeMonth && mk!==financeMonth) return sum;
-    return sum + (Number(rec.amount)||0);
-  },0);
-  const roomsRent = monthScoped.filter(t=>t.type==='income' && t.roomId).reduce((s,t)=>s+Number(t.amount),0);
-  const otherInc = income - roomsRent;
-  const brk = document.createElement('div');
-  brk.className='panel';
-  brk.style.cssText='padding:14px 16px;';
-  const brow = (ico,label,val,clr)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eef0f2;"><span style="font-size:14px;font-weight:600;">${ico} ${label}</span><b style="color:${clr};font-size:16px;">${fmt(val)} ر.س</b></div>`;
-  brk.innerHTML = `<div style="font-weight:800;font-size:14px;margin-bottom:4px;color:var(--text-dim);">تفاصيل مصادر الإيراد${financeMonth?' — '+monthLabel(financeMonth):''}</div>
-    ${brow('💳','الدفعات الشهرية (اشتراكات الشقق)',duesIncome,'#1f7a4a')}
-    ${brow('🚗','إيجارات الغرف',roomsRent,'#1f7a4a')}
-    ${otherInc>0?brow('➕','إيرادات أخرى',otherInc,'#555'):''}
-    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;"><span style="font-size:14px;font-weight:800;">إجمالي الإيرادات الفعلية</span><b style="font-size:17px;color:#1f7a4a;">${fmt(duesIncome+income)} ر.س</b></div>`;
-  main.appendChild(brk);
 
   const filters = document.createElement('div');
   filters.className='filters-row';
@@ -2544,6 +2522,29 @@ function renderFinance(main){
       return `<div class="stat-card tint-blue"><div class="lbl">الصافي${mo}</div><div class="num">${fmt(0)} ر.س</div></div>`;})()}
   `;
   main.appendChild(stats);
+
+  /* Revenue breakdown box: monthly dues (state.payments — never stored as
+     transactions) + driver-room rent (income transactions linked to a room). */
+  const unitIds = new Set(state.units.map(u=>u.id));
+  const duesIncome = Object.entries(state.payments||{}).reduce((sum,[key,rec])=>{
+    if(!rec || !rec.paid) return sum;
+    const [uid,mk] = key.split('|');
+    if(!unitIds.has(uid)) return sum;
+    if(financeMonth && mk!==financeMonth) return sum;
+    return sum + (Number(rec.amount)||0);
+  },0);
+  const roomsRent = monthScoped.filter(t=>t.type==='income' && t.roomId).reduce((s,t)=>s+Number(t.amount),0);
+  const otherInc = income - roomsRent;
+  const brk = document.createElement('div');
+  brk.className='panel';
+  brk.style.cssText='padding:14px 16px;';
+  const brow = (ico,label,val,clr)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eef0f2;"><span style="font-size:14px;font-weight:600;">${ico} ${label}</span><b style="color:${clr};font-size:16px;">${fmt(val)} ر.س</b></div>`;
+  brk.innerHTML = `<div style="font-weight:800;font-size:14px;margin-bottom:4px;color:var(--text-dim);">تفاصيل مصادر الإيراد${financeMonth?' — '+monthLabel(financeMonth):''}</div>
+    ${brow('💳','الدفعات الشهرية (اشتراكات الشقق)',duesIncome,'#1f7a4a')}
+    ${brow('🚗','إيجارات الغرف',roomsRent,'#1f7a4a')}
+    ${otherInc>0?brow('➕','إيرادات أخرى',otherInc,'#555'):''}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;"><span style="font-size:14px;font-weight:800;">إجمالي الإيرادات الفعلية</span><b style="font-size:17px;color:#1f7a4a;">${fmt(duesIncome+income)} ر.س</b></div>`;
+  main.appendChild(brk);
 
   const tabs = document.createElement('div');
   tabs.style.cssText='display:flex;gap:8px;margin:14px 0;';
