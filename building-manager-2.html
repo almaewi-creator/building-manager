@@ -928,7 +928,7 @@ const PLACE_LABEL = {bank:'حساب العمارة (البنك)', custody:'عه�
 function openTransferModal(){
   const opts = (sel)=>Object.keys(PLACE_LABEL).map(k=>`<option value="${k}" ${k===sel?'selected':''}>${PLACE_LABEL[k]}</option>`).join('');
   showModal(`<h3>تحويل بين الأماكن</h3>
-    <p style="font-size:12px;color:var(--text-dim);margin-top:-4px;">مثل: تحويل من حساب العمارة إلى حسابك لسداد ما صرفته من مالك. لا يُحسب إيرادًا ولا مصروفًا، فقط ينقل المبلغ من مكان لآخر.</p>
+    <p style="font-size:12px;color:var(--text-dim);margin-top:-4px;">مثل: تحويل من حساب العمارة إلى حسابك لتصرف منه نقدًا. لا يُحسب إيرادًا ولا مصروفًا، فقط ينقل المبلغ من مكان لآخر. <b>لا تسجّل المبلغ مرة ثانية كمصروف</b> إن كانت مصروفاتك التي صرفتها منه مسجَّلة أصلًا.</p>
     <div class="two-col">
       <div class="field"><label>من</label><select id="f-trfrom">${opts('bank')}</select></div>
       <div class="field"><label>إلى</label><select id="f-trto">${opts('custody')}</select></div>
@@ -977,6 +977,7 @@ function setBankActual(){
   state.bankActual = {amount:n, date:todayISODate()};
   saveState(); render();
 }
+function isBankFeeTx(t){ return t && t.type==='expense' && /رسوم\s*(تحويل|بنك|مصرف)/.test((t.category||'')+' '+(t.note||'')); } // رسوم يخصمها البنك تلقائيًا: مستندها كشف الحساب لا سند صرف
 function placeBalances(){
   const from = state.bankActiveFrom || '';
   let bank = Number(state.openingBalance||0), cash = 0, custody = 0;
@@ -988,7 +989,11 @@ function placeBalances(){
     const [uid,mk] = k.split('|');
     if(!ids.has(uid) || mk < start) return;
     const amt = Number(r.amount)||0;
-    if(from && mk >= from) bank += amt; else custody += amt;
+    // مكان محدد يدويًا لهذه الدفعة (مثل متأخرات سُدّدت لاحقًا لحساب العمارة) له الأولوية
+    if(r.place==='bank') bank += amt;
+    else if(r.place==='cash') cash += amt;
+    else if(r.place==='custody') custody += amt;
+    else if(from && mk >= from) bank += amt; else custody += amt;
   });
   (state.transactions||[]).forEach(t=>{
     const v = (t.type==='income'?1:-1) * (Number(t.amount)||0);
@@ -1954,6 +1959,16 @@ function openPaymentEditModal(unitId){
         <option value="0" ${!rec.paid?'selected':''}>غير مدفوعة</option>
       </select>
     </div>
+    <div class="field">
+      <label>أين استُلمت هذه الدفعة؟</label>
+      <select id="f-payplace">
+        <option value="" ${!rec.place?'selected':''}>تلقائي (حسب شهر تفعيل حساب العمارة)</option>
+        <option value="bank" ${rec.place==='bank'?'selected':''}>حساب العمارة (البنك)</option>
+        <option value="custody" ${rec.place==='custody'?'selected':''}>عهدة المدير (حسابي الشخصي)</option>
+        <option value="cash" ${rec.place==='cash'?'selected':''}>نقد</option>
+      </select>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">مثال: متأخرات شهر أغسطس سدّدها المالك لاحقًا إلى حساب العمارة ← اختر «حساب العمارة».</div>
+    </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="resetPaymentToDefault('${unitId}')">إعادة للمبلغ الافتراضي</button>
       <button class="btn" onclick="savePaymentEdit('${unitId}')">حفظ</button>
@@ -1965,14 +1980,16 @@ async function savePaymentEdit(unitId){
   const key = unitId+'|'+paymentsMonth;
   const amount = Number(document.getElementById('f-payamount').value) || 0;
   const paid = document.getElementById('f-paystatus').value === '1';
-  state.payments[key] = { paid, amount };
+  const place = (document.getElementById('f-payplace')||{}).value || '';
+  const nr = { paid, amount }; if(place) nr.place = place;
+  state.payments[key] = nr;
   await saveState(); closeModal(); render();
 }
 async function resetPaymentToDefault(unitId){
   const u = state.units.find(x=>x.id===unitId);
   const key = unitId+'|'+paymentsMonth;
   const existing = state.payments[key] || {paid:false};
-  state.payments[key] = { paid: existing.paid, amount: u.monthlyFee||200 };
+  state.payments[key] = Object.assign({ paid: existing.paid, amount: u.monthlyFee||200 }, existing.place?{place:existing.place}:{});
   await saveState(); closeModal(); render();
 }
 function buildPaymentsReportHTML(){
@@ -2704,7 +2721,7 @@ function auditFinance(){
   if(dups) issues.push(`${dups} حركة مكررة محتملة (نفس النوع والتاريخ والمبلغ والفئة والملاحظة)`); else ok.push('لا توجد حركات مكررة');
   // 6) مصروفات بدون سند
   const linked = new Set((state.vouchers||[]).map(v=>v.txId).filter(Boolean));
-  const noV = tx.filter(t=>t.type==='expense' && !linked.has(t.id));
+  const noV = tx.filter(t=>t.type==='expense' && !linked.has(t.id) && !isBankFeeTx(t));
   if(noV.length) issues.push(`${noV.length} مصروف بدون سند صرف (${fmt(noV.reduce((s,t)=>s+Number(t.amount),0))} ر.س)`); else ok.push('كل المصروفات لها سندات صرف');
   // 7) مطابقة الرصيد
   const income = tx.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
@@ -2719,6 +2736,11 @@ function auditFinance(){
     if(Math.abs(d)>=0.005) issues.push(`رصيد البنك الفعلي (${fmt(state.bankActual.amount)}) يختلف عن المسجَّل في النظام (${fmt(pbk.bank)}) بفرق ${fmt(d)} ر.س`);
     else ok.push('رصيد البنك مطابق لكشف البنك ('+fmt(pbk.bank)+' ر.س)');
   }
+  // مصروف بنفس مبلغ تحويل بين الأماكن: غالبًا تكرار (التحويل ينقل المال فقط، والصرف منه مسجَّل أصلًا)
+  (state.transfers||[]).forEach(tr=>{
+    const hit = tx.filter(t=>t.type==='expense' && Math.abs(Number(t.amount)-Number(tr.amount))<0.005);
+    if(hit.length) issues.push(`تحويل بين الأماكن ${fmt(tr.amount)} ر.س (${tr.date||''}) يقابله مصروف بنفس المبلغ (${hit.map(t=>t.date).join('، ')}) — إن كان تكرارًا فاحذف المصروف، فالتحويل ينقل المال فقط`);
+  });
   const bal = Number(state.openingBalance||0) + stored + income - expense;
   return {issues, ok, bal, opening:Number(state.openingBalance||0), stored, income, expense};
 }
@@ -2769,7 +2791,7 @@ function renderFinance(main){
   // كان مُدخَلًا يدويًا قبل وجود ميزة السندات أو نُسي ربطه بسند.
   if(!state.vouchers) state.vouchers = [];
   const linkedTxIds = new Set(state.vouchers.map(v=>v.txId).filter(Boolean));
-  const expensesNoVoucher = state.transactions.filter(t=>t.type==='expense' && !linkedTxIds.has(t.id));
+  const expensesNoVoucher = state.transactions.filter(t=>t.type==='expense' && !linkedTxIds.has(t.id) && !isBankFeeTx(t));
   if(expensesNoVoucher.length>0){
     const noVchTotal = expensesNoVoucher.reduce((s,t)=>s+Number(t.amount),0);
     const banner = document.createElement('div');
@@ -2829,7 +2851,7 @@ function renderFinance(main){
     .sort((a,b)=> (b.t.date||'').localeCompare(a.t.date||'') || (b.i-a.i))
     .map(x=>x.t);
   sorted.forEach(t=>{
-    const noVoucher = t.type==='expense' && !linkedTxIds.has(t.id);
+    const noVoucher = t.type==='expense' && !linkedTxIds.has(t.id) && !isBankFeeTx(t);
     rows += `<tr${noVoucher?' style="background:#fff8ec;"':''}>
       <td>${t.date}</td>
       <td>${statusBadge(t.type==='income'?'مدفوعة':'غير مدفوعة').replace(t.type==='income'?'مدفوعة':'غير مدفوعة', t.type==='income'?'إيراد':'مصروف')}</td>
