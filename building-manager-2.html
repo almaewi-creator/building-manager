@@ -903,7 +903,7 @@ function lastNMonthKeys(n){
 /* Closing balance at the END of month k: opening + everything received up to k
    (dues keyed <=k, income tx dated <=k) - expenses dated <=k. */
 function closingBalanceAt(k){
-  const start = firstBillingMonthKey();
+  const start = incomeStartKey();
   const ids = new Set(state.units.map(u=>u.id));
   let dues = 0;
   Object.keys(state.payments||{}).forEach(key=>{
@@ -982,7 +982,7 @@ function placeBalances(){
   const from = state.bankActiveFrom || '';
   let bank = Number(state.openingBalance||0), cash = 0, custody = 0;
   // دفعات الشقق: من شهر تفعيل حساب العمارة فصاعدًا تُحوَّل مباشرة للحساب، وقبله عهدة المدير
-  const start = firstBillingMonthKey();
+  const start = incomeStartKey();
   const ids = new Set(state.units.map(u=>u.id));
   Object.keys(state.payments||{}).forEach(k=>{
     const r = state.payments[k]; if(!r || !r.paid) return;
@@ -1193,7 +1193,7 @@ function renderDashboard(main){
   const activeMnt = state.maintenance.filter(m=>m.status!=='مكتملة').length;
   const income = state.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const expense = state.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
-  const collected = state.units.reduce((s,u)=>s+Number(u.collected||0),0);
+  const collected = paidDuesTotal('');
   const roomsCollected = state.driverRooms.reduce((s,r)=>s+computeRoomCollected(r),0);
   /* "income" already includes driver-room rent (pushed as a transaction when
      recorded), but unit subscriptions are tracked separately in state.payments
@@ -1747,6 +1747,13 @@ function firstBillingMonthKey(){
   });
   return min || currentMonthKey();
 }
+/* أول شهر تدخل دفعاته في رصيد حساب العمارة (شهر استلام الإدارة). ما قبله حُصِّل لدى الإدارة السابقة:
+   يُحتسب في حساب الشقة (المتأخرات) لكن لا يدخل في الإيراد ولا في الرصيد. */
+function incomeStartKey(){
+  const b = firstBillingMonthKey();
+  const m = state.managementStartMonth || '';
+  return (m && m > b) ? m : b;
+}
 function monthsBetweenInclusive(startKey, endKey){
   if(startKey > endKey) return [];
   const out = [];
@@ -1802,8 +1809,8 @@ function computeUnitCollected(unit){
 }
 /* Single source of truth for "dues collected": same rule as computeUnitCollected
    (months before the first billing month are ignored). monthKey '' = all months. */
-function paidDuesTotal(monthKey){
-  const start = firstBillingMonthKey();
+function paidDuesTotal(monthKey, sinceKey){
+  const start = sinceKey || incomeStartKey();
   const unitIds = new Set(state.units.map(u=>u.id));
   let total = 0;
   Object.keys(state.payments||{}).forEach(k=>{
@@ -2277,6 +2284,12 @@ function renderSettings(main){
       <input id="f-set-bankfrom" type="month" value="${state.bankActiveFrom||''}">
     </div>
     <div class="field">
+      <label>شهر استلام الإدارة (من هذا الشهر تدخل الدفعات في رصيد حساب العمارة)</label>
+      <input id="f-set-mgmtstart" type="month" value="${state.managementStartMonth||''}">
+      <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;line-height:1.7;">الدفعات قبل هذا الشهر (حصّلتها الإدارة السابقة) تُحسب في حساب الشقة لتقليل متأخراتها، ولا تدخل في إيراد الجمعية ولا في الرصيد. اتركه فارغاً لو بداية الفوترة هي نفسها بداية استلامك.</div>
+      <button class="btn-ghost" style="margin-top:8px;" onclick="applyPriorAdminPayments()">تعليم أبريل–يوليو مدفوعة حسب قائمة الإدارة السابقة</button>
+    </div>
+    <div class="field">
       <label>راتب المدير الشهري غير المصروف (ر.س)</label>
       <input id="f-set-salary" type="number" step="0.01" value="${getManagerSalary().amount||0}">
     </div>
@@ -2428,6 +2441,29 @@ async function mergeRestoreFile(input){
   }
   input.value = '';
 }
+/* تعليم دفعات أبريل–يوليو 2026 كما في قائمة سداد الاشتراكات المستلمة من الإدارة السابقة (19/08/2026).
+   كل الشقق مدفوعة الأشهر الأربعة ما عدا: 204 و301 و801 (لا شيء)، 404 (أبريل–يونيو). أما 401 و402 فكانا ناقصين وقت القائمة وسدّدا بعدها. */
+async function applyPriorAdminPayments(){
+  const months = ['2026-04','2026-05','2026-06','2026-07'];
+  const paidMonths = {'204':[], '301':[], '801':[], '404':months.slice(0,3)};
+  if(!confirm('سيُعلَّم أبريل–يوليو 2026 مدفوعاً لكل الشقق، عدا: 204 و301 و801 (غير مدفوعة)، و404 (يوليو فقط غير مدفوع).\nلا يُغيَّر أي شهر سبق تسجيله مدفوعاً.\nولن تدخل هذه الدفعات في رصيد الحساب إذا كان "شهر استلام الإدارة" أغسطس 2026. هل تتابع؟')) return;
+  if(!state.billingStartMonth || state.billingStartMonth > '2026-04') state.billingStartMonth = '2026-04';
+  if(!state.managementStartMonth) state.managementStartMonth = '2026-08';
+  let n = 0;
+  state.units.forEach(u=>{
+    const m = String(u.number||'').match(/\d+/); if(!m) return;
+    const ok = paidMonths[m[0]] || months;
+    months.forEach(mk=>{
+      const key = u.id+'|'+mk;
+      const rec = state.payments[key];
+      if(rec && rec.paid) return;
+      if(ok.includes(mk)){ state.payments[key] = {paid:true, amount: (rec&&rec.amount)||u.monthlyFee||200, priorAdmin:true}; n++; }
+    });
+  });
+  syncAllUnitsFinancials();
+  await saveState(); render();
+  alert('تم تعليم '+n+' دفعة. بداية الفوترة: أبريل 2026، واستلام الإدارة: أغسطس 2026.');
+}
 async function setBillingMode(ignoreStart){
   state.billingModeIgnoreStart = ignoreStart;
   await saveState();
@@ -2444,6 +2480,7 @@ async function saveSettings(){
   const sal = document.getElementById('f-set-salary');
   if(sal) state.managerSalary = {amount:Number(sal.value)||0, startMonth:(document.getElementById('f-set-salarystart')||{}).value||'', status:(document.getElementById('f-set-salarystatus')||{}).value||'deferred'};
   const bkf = document.getElementById('f-set-bankfrom'); if(bkf) state.bankActiveFrom = bkf.value || '';
+  const mgs = document.getElementById('f-set-mgmtstart'); if(mgs) state.managementStartMonth = mgs.value || '';
   const obn = document.getElementById('f-set-openbalnote'); if(obn) state.openingBalanceNote = obn.value.trim();
   await saveState();
   render();
@@ -2700,7 +2737,7 @@ function auditFinance(){
   if(!missing && !diffAmt && !orphan) ok.push('دفعات الغرف مطابقة لحركات الإيراد');
   // 2) تحصيل الشقق: المخزّن مقابل المحسوب من الدفعات
   const stored = state.units.reduce((s,u)=>s+Number(u.collected||0),0);
-  const calc = paidDuesTotal('');
+  const calc = paidDuesTotal('', firstBillingMonthKey());
   if(stored!==calc) issues.push(`إجمالي تحصيل الشقق المخزّن (${fmt(stored)}) يختلف عن المحسوب من الدفعات (${fmt(calc)})`);
   else ok.push('تحصيل الشقق مطابق للدفعات ('+fmt(calc)+' ر.س)');
   // 3) دفعات شقق قبل شهر بدء الفوترة (لا تدخل في الأرصدة)
