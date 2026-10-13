@@ -3255,11 +3255,13 @@ function renderVoucherHistory(main){
     <input type="month" id="vchHistMonth" value="${voucherHistoryMonth||currentMonthKey()}" ${voucherHistoryMonth?'':'disabled'}>
     <button class="btn-ghost btn-sm" id="vchHistAllBtn">${voucherHistoryMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
     <button class="btn-ghost btn-sm" id="vchPrintAllBtn" title="يطبع كل السندات الظاهرة في القائمة الآن دفعة واحدة">🖨 طباعة الكل</button>
-    <button class="btn-ghost btn-sm" id="vchRenumberBtn" title="يرتب كل السندات حسب التاريخ ويعيد ترقيمها 1, 2, 3...">🔢 ترقيم تلقائي حسب التاريخ</button>`;
+    <button class="btn-ghost btn-sm" id="vchRenumberBtn" title="يرتب كل السندات حسب التاريخ ويعيد ترقيمها 1, 2, 3...">🔢 ترقيم تلقائي حسب التاريخ</button>
+    <button class="btn-ghost btn-sm" id="vchFixDupBtn" title="يكتشف أرقام السندات المكررة في المصروفات ويعطي المكرر رقماً جديداً فقط، دون المساس ببقية الأرقام">🧹 إصلاح الأرقام المكررة</button>`;
   main.appendChild(filters);
   filters.querySelector('#vchHistMonth').addEventListener('change', e=>{ voucherHistoryMonth = e.target.value; render(); });
   filters.querySelector('#vchHistAllBtn').addEventListener('click', ()=>{ voucherHistoryMonth = voucherHistoryMonth ? '' : currentMonthKey(); render(); });
   filters.querySelector('#vchRenumberBtn').addEventListener('click', renumberVouchersByDate);
+  filters.querySelector('#vchFixDupBtn').addEventListener('click', fixDuplicateVoucherNumbers);
 
   const list = voucherHistoryMonth
     ? state.vouchers.filter(v=>(v.date||'').slice(0,7)===voucherHistoryMonth)
@@ -3541,6 +3543,47 @@ async function deleteVoucherHistory(id){
   await saveState();
   render();
 }
+
+// Finds expense entries whose "سند صرف رقم N" number is used more than once,
+// and gives only the later duplicates a fresh number. Existing unique numbers
+// are never touched (so printed paper vouchers still match). Also reports gaps.
+async function fixDuplicateVoucherNumbers(){
+  const re = /(سند صرف رقم\s*)(\d+)/;
+  const items = (state.transactions||[])
+    .filter(t=>t.type==='expense' && re.test(t.note||''))
+    .map(t=>({t, no: parseInt((t.note.match(re))[2],10)}));
+  const byNo = {};
+  items.forEach(it=>{ (byNo[it.no] = byNo[it.no]||[]).push(it); });
+  let maxNo = Math.max(0, (state.nextVoucherNo||1)-1, ...items.map(i=>i.no));
+  const changes = [];
+  Object.keys(byNo).forEach(k=>{
+    const g = byNo[k];
+    if(g.length<2) return;
+    g.sort((a,b)=> (a.t.date||'').localeCompare(b.t.date||'') || String(a.t.id).localeCompare(String(b.t.id), undefined, {numeric:true}));
+    g.slice(1).forEach(it=>{ changes.push({it, from: it.no, to: ++maxNo}); });
+  });
+  const used = new Set(items.map(i=>i.no));
+  changes.forEach(c=>used.add(c.to));
+  const gaps = [];
+  for(let n=1;n<=maxNo;n++){ if(!used.has(n)) gaps.push(String(n).padStart(4,'0')); }
+  if(changes.length===0){
+    alert('لا توجد أرقام سندات مكررة ✅'+(gaps.length?'\n\nأرقام غير مستخدمة (فجوات): '+gaps.join('، '):''));
+    return;
+  }
+  const lines = changes.map(c=>'• '+String(c.from).padStart(4,'0')+' ← '+String(c.to).padStart(4,'0')+'  ('+(c.it.t.date||'')+' — '+(c.it.t.note||'').replace(/سند صرف رقم\s*\d+\s*[—–-]?\s*/,'').slice(0,40)+')').join('\n');
+  if(!confirm('سيُغيَّر رقم السندات المكررة التالية فقط (الباقي لا يُمس):\n\n'+lines+'\n\nتكمل؟')) return;
+  changes.forEach(c=>{
+    const t = c.it.t;
+    t.note = t.note.replace(re, (m,a)=> a+String(c.to).padStart(4,'0'));
+    t.voucherNo = c.to;
+    (state.vouchers||[]).forEach(v=>{ if(v.txId===t.id) v.no = c.to; });
+  });
+  state.nextVoucherNo = Math.max(state.nextVoucherNo||1, maxNo+1);
+  await saveState();
+  render();
+  alert('تم — صُحّح '+changes.length+' رقم مكرر.'+(gaps.length?'\n\nأرقام غير مستخدمة (فجوات) للمراجعة: '+gaps.join('، '):''));
+}
+
 async function renumberVouchersByDate(){
   if(state.vouchers.length===0){ alert('لا توجد سندات في السجل بعد'); return; }
   if(!confirm('سيُعاد ترتيب كل السندات (من كل الأشهر) حسب التاريخ من الأقدم للأحدث، وتُرقَّم تلقائيًا ١، ٢، ٣... بالتسلسل. ملاحظة: إذا كانت بعض السندات مطبوعة ورقيًا بأرقامها الحالية، رقمها المحفوظ هنا سيتغيّر وما بيطابق الورقة بعدها. تكملين؟')) return;
