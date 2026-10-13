@@ -3256,12 +3256,14 @@ function renderVoucherHistory(main){
     <button class="btn-ghost btn-sm" id="vchHistAllBtn">${voucherHistoryMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
     <button class="btn-ghost btn-sm" id="vchPrintAllBtn" title="يطبع كل السندات الظاهرة في القائمة الآن دفعة واحدة">🖨 طباعة الكل</button>
     <button class="btn-ghost btn-sm" id="vchRenumberBtn" title="يرتب كل السندات حسب التاريخ ويعيد ترقيمها 1, 2, 3...">🔢 ترقيم تلقائي حسب التاريخ</button>
+    <button class="btn-ghost btn-sm" id="vchSyncNoBtn" title="يجعل رقم السند المكتوب في ملاحظة كل مصروف مطابقاً لرقمه الحقيقي في سجل السندات (الأرقام المطبوعة على الورق لا تتغير)">🔄 مطابقة أرقام المصروفات مع السندات</button>
     <button class="btn-ghost btn-sm" id="vchFixDupBtn" title="يكتشف أرقام السندات المكررة في المصروفات ويعطي المكرر رقماً جديداً فقط، دون المساس ببقية الأرقام">🧹 إصلاح الأرقام المكررة</button>`;
   main.appendChild(filters);
   filters.querySelector('#vchHistMonth').addEventListener('change', e=>{ voucherHistoryMonth = e.target.value; render(); });
   filters.querySelector('#vchHistAllBtn').addEventListener('click', ()=>{ voucherHistoryMonth = voucherHistoryMonth ? '' : currentMonthKey(); render(); });
   filters.querySelector('#vchRenumberBtn').addEventListener('click', renumberVouchersByDate);
   filters.querySelector('#vchFixDupBtn').addEventListener('click', fixDuplicateVoucherNumbers);
+  filters.querySelector('#vchSyncNoBtn').addEventListener('click', syncExpenseNotesWithVoucherNumbers);
 
   const list = voucherHistoryMonth
     ? state.vouchers.filter(v=>(v.date||'').slice(0,7)===voucherHistoryMonth)
@@ -3547,6 +3549,33 @@ async function deleteVoucherHistory(id){
 // Finds expense entries whose "سند صرف رقم N" number is used more than once,
 // and gives only the later duplicates a fresh number. Existing unique numbers
 // are never touched (so printed paper vouchers still match). Also reports gaps.
+
+// Makes the "سند صرف رقم N" text in each linked expense match the voucher's
+// real number in the register (the number printed on the paper voucher).
+// Voucher numbers are never changed — only the expense notes follow them.
+async function syncExpenseNotesWithVoucherNumbers(){
+  const re = /(سند صرف رقم\s*)(\d+)/;
+  const changes = [];
+  (state.vouchers||[]).forEach(v=>{
+    if(!v.txId) return;
+    const t = (state.transactions||[]).find(x=>x.id===v.txId);
+    if(!t || !re.test(t.note||'')) return;
+    const cur = parseInt(t.note.match(re)[2],10);
+    if(cur!==v.no || t.voucherNo!==v.no) changes.push({t, v, from:cur, to:v.no});
+  });
+  if(changes.length===0){ alert('أرقام المصروفات مطابقة لأرقام السندات ✅'); return; }
+  const lines = changes.map(c=>'• '+String(c.from).padStart(4,'0')+' ← '+String(c.to).padStart(4,'0')+'  ('+(c.t.date||'')+' — '+(c.v.for||'')+' — '+c.t.amount+')').join('\n');
+  if(!confirm('سيُصحَّح رقم السند في ملاحظة '+changes.length+' مصروف ليطابق سجل السندات (أرقام السندات نفسها لا تتغير):\n\n'+lines+'\n\nتكمل؟')) return;
+  changes.forEach(c=>{
+    c.t.note = c.t.note.replace(re, (m,a)=> a+String(c.to).padStart(4,'0'));
+    c.t.voucherNo = c.to;
+  });
+  await saveState();
+  render();
+  alert('تم — صُحّح '+changes.length+' مصروف. أعد طباعة التقرير.');
+}
+
+// Finds expense entries whose number repeats (kept for rare cases)
 async function fixDuplicateVoucherNumbers(){
   const re = /(سند صرف رقم\s*)(\d+)/;
   const items = (state.transactions||[])
