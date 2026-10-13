@@ -1182,8 +1182,30 @@ function buildArrearsSeverityLegendHTML(){
 }
 
 /* ---------------- dashboard ---------------- */
+
+/* طباعة لوحة التحكم بنفس شكلها: تُنسخ الصفحة الحالية (البطاقات والرسوم) إلى نافذة طباعة نظيفة بدون الأزرار */
+function printDashboard(){
+  const main = document.getElementById('main');
+  if(!main){ return; }
+  const clone = main.cloneNode(true);
+  clone.querySelectorAll('button, input, select, textarea, .icon-btn').forEach(e=>e.remove());
+  const css = Array.prototype.map.call(document.querySelectorAll('style'), st=>st.textContent).join('\n');
+  const links = Array.prototype.map.call(document.querySelectorAll('link[rel="stylesheet"]'), l=>'<link rel="stylesheet" href="'+l.href+'">').join('');
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write('<!DOCTYPE html><html dir="rtl" lang="ar" data-theme="light"><head><meta charset="UTF-8"><title>لوحة التحكم - '+esc(state.buildingName)+'</title>'+links+
+    '<style>'+css+'</style>'+
+    '<style>@page{size:A4;margin:8mm;} html,body{background:#fff !important;display:block !important;height:auto !important;} '+
+    '.main{padding:0 !important;overflow:visible !important;max-width:none !important;} '+
+    '*{-webkit-print-color-adjust:exact;print-color-adjust:exact;} '+
+    '.card,.panel,.stat,.kpi,.chart-card,table{break-inside:avoid;page-break-inside:avoid;} '+
+    'body{zoom:.82;}</style></head><body><div class="main">'+clone.innerHTML+
+    '<div style="text-align:center;color:#888;font-size:11px;margin-top:10px">تاريخ الطباعة: '+new Date().toLocaleDateString('ar-SA-u-ca-gregory')+'</div></div>'+
+    '<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>');
+  w.document.close();
+}
 function renderDashboard(main){
-  topbar(main, state.buildingName, 'لوحة التحكم', 'نظرة عامة على حالة الأعضاء والاشتراكات والصيانة.');
+  topbar(main, state.buildingName, 'لوحة التحكم', 'نظرة عامة على حالة الأعضاء والاشتراكات والصيانة.', '<button class="btn-ghost btn-sm" onclick="printDashboard()">🖨 طباعة لوحة التحكم</button>');
 
   const settled = state.units.filter(u=>Number(u.totalDue)>=0).length;
   const owing = state.units.length - settled;
@@ -3255,6 +3277,10 @@ function renderVoucherHistory(main){
     <input type="month" id="vchHistMonth" value="${voucherHistoryMonth||currentMonthKey()}" ${voucherHistoryMonth?'':'disabled'}>
     <button class="btn-ghost btn-sm" id="vchHistAllBtn">${voucherHistoryMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
     <button class="btn-ghost btn-sm" id="vchPrintAllBtn" title="يطبع كل السندات الظاهرة في القائمة الآن دفعة واحدة">🖨 طباعة الكل</button>
+    <select id="vchCopiesSel" class="btn-ghost btn-sm" title="عدد النسخ في كل ورقة عند طباعة السندات" style="padding:6px 8px;">
+      <option value="1">نسخة واحدة في الصفحة</option>
+      <option value="2">نسختان في الصفحة</option>
+    </select>
     <button class="btn-ghost btn-sm" id="vchRenumberBtn" title="يرتب كل السندات حسب التاريخ ويعيد ترقيمها 1, 2, 3...">🔢 ترقيم تلقائي حسب التاريخ</button>
     <button class="btn-ghost btn-sm" id="vchSyncNoBtn" title="يجعل رقم السند المكتوب في ملاحظة كل مصروف مطابقاً لرقمه الحقيقي في سجل السندات (الأرقام المطبوعة على الورق لا تتغير)">🔄 مطابقة أرقام المصروفات مع السندات</button>
     <button class="btn-ghost btn-sm" id="vchFixDupBtn" title="يكتشف أرقام السندات المكررة في المصروفات ويعطي المكرر رقماً جديداً فقط، دون المساس ببقية الأرقام">🧹 إصلاح الأرقام المكررة</button>`;
@@ -3270,6 +3296,7 @@ function renderVoucherHistory(main){
     : state.vouchers.slice();
   list.sort((a,b)=> b.no - a.no);
   filters.querySelector('#vchPrintAllBtn').addEventListener('click', ()=> printAllVouchersInHistory(list));
+  (function(){ const sel=filters.querySelector('#vchCopiesSel'); if(!sel) return; sel.value=getVoucherCopies(); sel.addEventListener('change', ()=>{ try{ localStorage.setItem('vchCopies', sel.value); }catch(e){} }); })();
 
   const panel = document.createElement('div');
   panel.className = 'panel';
@@ -3335,10 +3362,18 @@ function buildVoucherPrintHTML(no, data){
   // centered on the whole A4 sheet) so the dashed cut-line between the two
   // copies never slices through the logo when the sheet is cut in half.
   const wm = `<img src="${LOGO_URI}" class="vch-watermark" alt="">`;
-  return `
+  if(getVoucherCopies()==='2'){
+    return `<div class="vch-sheet">
   <div class="vch-print-page">${wm}${card}</div>
   <div class="vch-cut-line"></div>
-  <div class="vch-print-page">${wm}${card}</div>`;
+  <div class="vch-print-page">${wm}${card}</div></div>`;
+  }
+  // نسخة واحدة: السند في النصف العلوي من الورقة، والنصف السفلي فارغ لإلصاق المرفق (إشعار التحويل أو الفاتورة)
+  return `<div class="vch-sheet"><div class="vch-print-page">${wm}${card}</div></div>`;
+}
+// عدد نسخ السند في الورقة: '1' (الافتراضي) أو '2'
+function getVoucherCopies(){
+  try{ return localStorage.getItem('vchCopies')==='2' ? '2' : '1'; }catch(e){ return '1'; }
 }
 function openVoucherPrintWindow(no, data){
   const w = window.open('', '_blank');
@@ -3365,6 +3400,8 @@ const VCH_PRINT_STYLE = `
      size the print dialog reports. Two copies are stacked per sheet (one
      page's worth of height each, so two = one full A4) to save paper —
      one copy for the file, one for whoever received the payment. */
+  .vch-sheet{position:relative;width:210mm;height:297mm;overflow:hidden;page-break-after:always;break-after:page;}
+  .vch-sheet:last-of-type{page-break-after:auto;break-after:auto;}
   .vch-cut-line{position:absolute;top:148.5mm;left:0;right:0;height:0;border-top:1px dashed #b0b4bd;}
   .vch-print-page{width:210mm;height:148.5mm;overflow:hidden;padding:8mm 12mm;page-break-after:avoid;page-break-inside:avoid;position:relative;}
   /* Centered within each half on its own (not the whole A4 sheet), so
