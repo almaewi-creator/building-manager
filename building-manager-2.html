@@ -291,7 +291,7 @@
     box-shadow:0 3px 10px rgba(168,131,58,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .vch-logo-frame img{width:42px;height:42px;object-fit:contain;}
   .vch-brand h1{font:700 21px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;color:#16181d;}
-  .vch-brand small{display:block;color:#8a8f99;font-size:11.5px;direction:ltr;text-align:right;margin-top:3px;}
+  .vch-brand small{display:block;color:#8a8f99;font-size:11.5px;direction:rtl;text-align:right;margin-top:3px;line-height:1.6;}
   .vch-title{text-align:center;}
   .vch-title h2{font:700 29px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:9px 30px 11px;position:relative;color:#16181d;}
   .vch-title h2::before,.vch-title h2::after{content:"";position:absolute;right:0;left:0;height:2px;
@@ -3115,7 +3115,7 @@ function renderVoucher(main){
     <header>
       <div class="vch-brand">
         <div class="vch-logo-frame"><img src="${LOGO_URI}" alt="شعار"></div>
-        <div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div>
+        <div><h1>${esc(state.buildingName)}</h1><small>رقم الجمعية: 2373602200<br>الرقم الموحد: 7037713851</small></div>
       </div>
       <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
       <div class="vch-meta">
@@ -3293,7 +3293,7 @@ function buildVoucherCardHTML(no, data){
   return `
     <div class="vch-card">
       <header>
-        <div class="vch-brand"><div class="vch-logo-frame"><img src="${LOGO_URI}" alt="شعار"></div><div><h1>${esc(state.buildingName)}</h1><small>2373602200</small></div></div>
+        <div class="vch-brand"><div class="vch-logo-frame"><img src="${LOGO_URI}" alt="شعار"></div><div><h1>${esc(state.buildingName)}</h1><small>رقم الجمعية: 2373602200<br>الرقم الموحد: 7037713851</small></div></div>
         <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
         <div class="vch-meta">
           <label>رقم السند <span class="vch-no">${String(no).padStart(4,'0')}</span></label>
@@ -3382,7 +3382,7 @@ const VCH_PRINT_STYLE = `
     box-shadow:0 1px 4px rgba(168,131,58,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .vch-logo-frame img{width:25px;height:25px;object-fit:contain;}
   .vch-brand h1{font:700 14px/1.2 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;color:#16181d;}
-  .vch-brand small{display:block;color:#8a8f99;font-size:8px;direction:ltr;text-align:right;margin-top:1px;}
+  .vch-brand small{display:block;color:#8a8f99;font-size:8px;direction:rtl;text-align:right;margin-top:1px;line-height:1.5;}
   .vch-title{text-align:center;}
   .vch-title h2{font:700 19px/1 "El Messiri","IBM Plex Sans Arabic",sans-serif;margin:0;padding:4px 16px 5px;position:relative;color:#16181d;}
   .vch-title h2::before,.vch-title h2::after{content:"";position:absolute;right:0;left:0;height:1.5px;
