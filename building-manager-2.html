@@ -2923,6 +2923,29 @@ let financeFilter = 'all';
 let financeCarry = (()=>{try{return localStorage.getItem('financeCarry')==='1';}catch(e){return false;}})(); // إيراد الشهر السابق يغطي مصروفات الشهر الحالي
 function toggleFinanceCarry(){ financeCarry=!financeCarry; try{localStorage.setItem('financeCarry',financeCarry?'1':'0');}catch(e){} render(); }
 let financeMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter)
+/* إيداعات استُلمت في شهر لكنها تخص شهرًا لاحقًا (لها تاريخ إيداع فعلي) */
+function advanceDepositsHTML(month){
+  if(!month) return '';
+  const items=[]; let total=0;
+  Object.keys(state.payments||{}).forEach(k=>{
+    const r=state.payments[k]; if(!r||!r.paid||!r.depositDate) return;
+    const [uid,mk]=k.split('|'); const u=state.units.find(x=>x.id===uid);
+    if(u && r.depositDate.slice(0,7)===month && mk>month){ const a=Number(r.amount)||0; total+=a; items.push(['شقة '+u.number,mk,a]); }
+  });
+  Object.keys(state.roomPayments||{}).forEach(k=>{
+    const r=state.roomPayments[k]; if(!r||!r.paid||!r.depositDate) return;
+    const [rid,mk]=k.split('|'); const rm=(state.driverRooms||[]).find(x=>x.id===rid);
+    if(rm && r.depositDate.slice(0,7)===month && mk>month){ const a=Number(r.amount)||0; total+=a; items.push(['غرفة '+rm.number,mk,a]); }
+  });
+  if(!items.length) return '';
+  items.sort((a,b)=>a[1].localeCompare(b[1])||a[0].localeCompare(b[0],'ar'));
+  return `<div class="panel" style="padding:14px 16px;border-inline-start:5px solid #1c5fb0;">
+    <div style="font-weight:800;font-size:14px;margin-bottom:4px;color:#1c5fb0;">📥 إيداعات استُلمت في ${monthLabel(month)} لأشهر قادمة</div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">داخلة في رصيد ${monthLabel(month)} (البنك)، لكنها إيراد الشهر المكتوب بجانبها.</div>
+    ${items.map(([n,mk,a])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eef0f2;font-size:14px;"><span>${esc(n)} — ${monthLabel(mk)}</span><b>${fmt(a)} ر.س</b></div>`).join('')}
+    <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:800;"><span>المجموع</span><b style="color:#1c5fb0;">${fmt(total)} ر.س</b></div>
+  </div>`;
+}
 function renderFinance(main){
   topbar(main, state.buildingName, 'الإيرادات والمصروفات', 'سجل الحركات المالية للعمارة — حدد شهرًا لعزل حركاته، أو اعرض كل الأشهر معًا.',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="openAuditModal()">🔍 فحص مالي</button>'+
@@ -3001,6 +3024,7 @@ function renderFinance(main){
     ${otherInc>0?brow('➕','إيرادات أخرى',otherInc,'#555'):''}
     <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;"><span style="font-size:14px;font-weight:800;">إجمالي الإيرادات الفعلية</span><b style="font-size:17px;color:#1f7a4a;">${fmt(duesIncome+income)} ر.س</b></div>`;
   main.appendChild(brk);
+  { const adv = advanceDepositsHTML(financeMonth); if(adv){ const d=document.createElement('div'); d.innerHTML=adv; main.appendChild(d.firstElementChild); } }
 
   const tabs = document.createElement('div');
   tabs.style.cssText='display:flex;gap:8px;margin:14px 0;';
