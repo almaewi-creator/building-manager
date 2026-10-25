@@ -3004,9 +3004,13 @@ function renderFinance(main){
     <div class="stat-card tint-green"><div class="lbl">الإيرادات${srcMonth?' — '+monthLabel(srcMonth):''}</div>${financeMonth&&financeCarry?`<div style="font-size:11px;color:var(--text-dim);">تُصرف في ${monthLabel(financeMonth)}</div>`:''}<div class="num">${fmt(totalIncomeAll)} ر.س</div></div>
     <div class="stat-card" style="background:var(--red-tint);border-color:#f3d3d0;"><div class="lbl">المصروفات${financeMonth?' — '+monthLabel(financeMonth):''}</div><div class="num">${fmt(expense)} ر.س</div></div>
     ${(()=>{const n=totalIncomeAll-expense;const mo=financeMonth?' — '+monthLabel(financeMonth):'';
-      if(n<0) return `<div class="stat-card" style="background:var(--red-tint);border-color:#e8b4af;border-width:1.5px;"><div class="lbl" style="color:#c0392b;">⚠ عجز${mo}</div><div class="num" style="color:#c0392b;">${fmt(Math.abs(n))} ر.س</div><div style="font-size:11.5px;color:#c0392b;margin-top:4px;font-weight:600;">المصروفات أكبر من الإيرادات</div></div>`;
-      if(n>0) return `<div class="stat-card tint-green"><div class="lbl">فائض${mo}</div><div class="num" style="color:#1f7a4a;">${fmt(n)} ر.س</div></div>`;
-      return `<div class="stat-card tint-blue"><div class="lbl">الصافي${mo}</div><div class="num">${fmt(0)} ر.س</div></div>`;})()}
+      const carryOn = !!(financeMonth && financeCarry);
+      const nm = carryOn ? 'الفرق' : null; // عند الترحيل: مقارنة شهرين لا رصيد حساب
+      const bal = placeBalances().total;
+      const note = `<div style="font-size:11.5px;color:var(--text-dim);margin-top:6px;line-height:1.6;">${carryOn?'مقارنة بين إيراد '+monthLabel(srcMonth)+' ومصروفات '+monthLabel(financeMonth)+' فقط، وليس رصيد الحساب.<br>':''}رصيد الحساب الفعلي الآن: <b>${fmt(bal)} ر.س</b></div>`;
+      if(n<0) return `<div class="stat-card" style="background:var(--red-tint);border-color:#e8b4af;border-width:1.5px;"><div class="lbl" style="color:#c0392b;">⚠ ${nm?'فرق سالب (عجز)':'عجز'}${mo}</div><div class="num" style="color:#c0392b;">${fmt(Math.abs(n))} ر.س</div><div style="font-size:11.5px;color:#c0392b;margin-top:4px;font-weight:600;">المصروفات أكبر من الإيرادات</div>${note}</div>`;
+      if(n>0) return `<div class="stat-card tint-green"><div class="lbl">${nm?'الفرق (إيراد − مصروفات)':'فائض'}${mo}</div><div class="num" style="color:#1f7a4a;">${fmt(n)} ر.س</div>${note}</div>`;
+      return `<div class="stat-card tint-blue"><div class="lbl">الصافي${mo}</div><div class="num">${fmt(0)} ر.س</div>${note}</div>`;})()}
   `;
   main.appendChild(stats);
 
