@@ -975,11 +975,12 @@ function closingBalanceAt(k){
   Object.keys(state.payments||{}).forEach(key=>{
     const r = state.payments[key]; if(!r || !r.paid) return;
     const [uid,mk] = key.split('|');
-    if(ids.has(uid) && mk>=start && mk<=k) dues += Number(r.amount)||0;
+    const em = (r.depositDate && /^\d{4}-\d{2}/.test(r.depositDate)) ? r.depositDate.slice(0,7) : mk; // شهر الإيداع الفعلي إن وُجد، وإلا شهر الاستحقاق
+    if(ids.has(uid) && mk>=start && em<=k) dues += Number(r.amount)||0;
   });
   let inc=0, exp=0;
   state.transactions.forEach(t=>{
-    const m=(t.date||'').slice(0,7); if(!m || m>k) return;
+    const m=((t.type==='income' && t.depositDate) ? t.depositDate : (t.date||'')).slice(0,7); if(!m || m>k) return;
     if(t.type==='income') inc+=Number(t.amount)||0; else if(t.type==='expense') exp+=Number(t.amount)||0;
   });
   return Number(state.openingBalance||0) + dues + inc - exp;
@@ -2073,6 +2074,11 @@ function openPaymentEditModal(unitId){
         <option value="cash" ${rec.place==='cash'?'selected':''}>نقد</option>
       </select>
       <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">مثال: متأخرات شهر أغسطس سدّدها المالك لاحقًا إلى حساب العمارة ← اختر «حساب العمارة».</div>
+    <div class="field">
+      <label>تاريخ الإيداع الفعلي (اختياري)</label>
+      <input id="f-paydate" type="date" value="${rec.depositDate||''}">
+      <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">للدفعة المستلمة قبل بداية شهرها (مثل رسوم نوفمبر المودَعة في 25 أكتوبر): الدفعة تبقى إيرادًا لشهر <b>${monthLabel(paymentsMonth)}</b>، لكن رصيد نهاية الشهر يحسبها من تاريخ الإيداع فيطابق كشف البنك.</div>
+    </div>
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="resetPaymentToDefault('${unitId}')">إعادة للمبلغ الافتراضي</button>
@@ -2087,7 +2093,12 @@ async function savePaymentEdit(unitId){
   const amount = Number(document.getElementById('f-payamount').value) || 0;
   const paid = document.getElementById('f-paystatus').value === '1';
   const place = (document.getElementById('f-payplace')||{}).value || '';
-  const nr = { paid, amount }; if(place) nr.place = place;
+  const depositDate = ((document.getElementById('f-paydate')||{}).value || '').trim();
+  const oldDep = (state.payments[key]||{}).depositDate || '';
+  if(depositDate!==oldDep){
+    for(const d of [depositDate, oldDep]){ if(d && !assertMonthOpen(d.slice(0,7),'تغيير تاريخ الإيداع')) return; }
+  }
+  const nr = { paid, amount }; if(place) nr.place = place; if(depositDate) nr.depositDate = depositDate;
   state.payments[key] = nr;
   await saveState(); closeModal(); render();
 }
@@ -2096,7 +2107,7 @@ async function resetPaymentToDefault(unitId){
   const u = state.units.find(x=>x.id===unitId);
   const key = unitId+'|'+paymentsMonth;
   const existing = state.payments[key] || {paid:false};
-  state.payments[key] = Object.assign({ paid: existing.paid, amount: u.monthlyFee||200 }, existing.place?{place:existing.place}:{});
+  state.payments[key] = Object.assign({ paid: existing.paid, amount: u.monthlyFee||200 }, existing.place?{place:existing.place}:{}, existing.depositDate?{depositDate:existing.depositDate}:{});
   await saveState(); closeModal(); render();
 }
 function buildPaymentsReportHTML(){
@@ -2697,7 +2708,7 @@ function syncRoomTx(roomId, mk){
   else { const [y,m] = mk.split('-').map(Number); date = mk+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'); }
   const payload = { type:'income', amount, category:'غرفة '+r.number, method:'كاش',
     date: (tx && tx.date && String(tx.date).slice(0,7)===mk) ? tx.date : date,
-    note:'إيجار '+monthLabel(mk)+(r.tenant?' — '+r.tenant:''), roomPayKey:key };
+    note:'إيجار '+monthLabel(mk)+(r.tenant?' — '+r.tenant:''), roomPayKey:key, depositDate:(rec.depositDate||undefined) };
   if(tx){ Object.assign(tx, payload); }
   else { state.transactions.push(Object.assign({id:'t'+(state.nextIds.tx++), hasAttachment:false}, payload)); }
   return true;
@@ -2715,6 +2726,7 @@ async function backfillRoomTx(){
   alert(n>0 ? 'تم ✅ — أُضيفت '+n+' حركة إيراد ناقصة لدفعات غرف مدفوعة.' : 'كل دفعات الغرف المدفوعة عندها حركة إيراد مرتبطة — ما فيه شي ناقص.');
 }
 async function toggleRoomPayment(roomId){
+  if(!assertMonthOpen(roomPaymentsMonth,'تغيير حالة دفعة الغرفة')) return;
   const key = roomId+'|'+roomPaymentsMonth;
   const r = state.driverRooms.find(x=>x.id===roomId);
   const rec = state.roomPayments[key] || {paid:false, amount:r.monthlyRent||0};
@@ -2743,6 +2755,11 @@ function openRoomPaymentEditModal(roomId){
         <option value="0" ${!rec.paid?'selected':''}>غير مدفوعة</option>
       </select>
     </div>
+    <div class="field">
+      <label>تاريخ الإيداع الفعلي (اختياري)</label>
+      <input id="f-rpaydate" type="date" value="${rec.depositDate||''}">
+      <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">للإيجار المستلم قبل بداية شهره (مثل إيجار نوفمبر المودَع في 25 أكتوبر): يبقى إيرادًا لشهر <b>${monthLabel(roomPaymentsMonth)}</b>، لكن رصيد نهاية الشهر يحسبه من تاريخ الإيداع فيطابق كشف البنك.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="resetRoomPaymentToDefault('${roomId}')">إعادة للمبلغ الافتراضي</button>
       <button class="btn" onclick="saveRoomPaymentEdit('${roomId}')">حفظ</button>
@@ -2753,15 +2770,20 @@ async function saveRoomPaymentEdit(roomId){
   const key = roomId+'|'+roomPaymentsMonth;
   const amount = Number(document.getElementById('f-rpayamount').value) || 0;
   const paid = document.getElementById('f-rpaystatus').value === '1';
-  state.roomPayments[key] = { paid, amount };
+  if(!assertMonthOpen(roomPaymentsMonth,'تعديل دفعة الغرفة')) return;
+  const depositDate = ((document.getElementById('f-rpaydate')||{}).value || '').trim();
+  const oldDep = (state.roomPayments[key]||{}).depositDate || '';
+  if(depositDate!==oldDep){ for(const d of [depositDate, oldDep]){ if(d && !assertMonthOpen(d.slice(0,7),'تغيير تاريخ الإيداع')) return; } }
+  state.roomPayments[key] = { paid, amount }; if(depositDate) state.roomPayments[key].depositDate = depositDate;
   syncRoomTx(roomId, roomPaymentsMonth);
   await saveState(); closeModal(); render();
 }
 async function resetRoomPaymentToDefault(roomId){
   const r = state.driverRooms.find(x=>x.id===roomId);
   const key = roomId+'|'+roomPaymentsMonth;
+  if(!assertMonthOpen(roomPaymentsMonth,'تعديل دفعة الغرفة')) return;
   const existing = state.roomPayments[key] || {paid:false};
-  state.roomPayments[key] = { paid: existing.paid, amount: r.monthlyRent||0 };
+  state.roomPayments[key] = Object.assign({ paid: existing.paid, amount: r.monthlyRent||0 }, existing.depositDate?{depositDate:existing.depositDate}:{});
   syncRoomTx(roomId, roomPaymentsMonth);
   await saveState(); closeModal(); render();
 }
@@ -2912,7 +2934,7 @@ function renderFinance(main){
   filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">الشهر:</label>
     <input type="month" id="financeMonthPicker" value="${financeMonth||currentMonthKey()}" ${financeMonth?'':'disabled'}>
     <button class="btn-ghost btn-sm" onclick="financeMonth=financeMonth?'':currentMonthKey();render();">${financeMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
-    ${financeMonth?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-right:8px;cursor:pointer;"><input type="checkbox" ${financeCarry?'checked':''} onchange="toggleFinanceCarry()"> إيراد الشهر السابق يُصرف في هذا الشهر</label>`:''}`;
+    ${financeMonth?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-right:8px;cursor:pointer;"><input type="checkbox" ${financeCarry?'checked':''} onchange="toggleFinanceCarry()"> إيراد الشهر السابق يُصرف في هذا الشهر</label><div style="font-size:11.5px;color:var(--text-dim);flex-basis:100%;">فعّله فقط إذا كان إيراد الشهر السابق هو ما يموّل مصروفات هذا الشهر. أما رسوم الشهر المودَعة قبل بدايته فسجّلها على شهرها نفسه واتركه مغلقًا.</div>`:''}`;
   main.appendChild(filters);
   filters.querySelector('#financeMonthPicker').onchange = (e)=>{ financeMonth = e.target.value; render(); };
 
