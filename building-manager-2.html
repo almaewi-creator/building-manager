@@ -1675,7 +1675,9 @@ function buildOwnerStatementHTML(owner){
       if(!(r && r.paid)){ if(mk < _mStart) _priorUnpaid += amt; else _curUnpaid += amt; }
     });
   });
-  const _periodRows = `
+  let _advance = 0;
+  units.forEach(u=>{ Object.keys(state.payments||{}).forEach(k=>{ const [uid,mk]=k.split('|'); const r=state.payments[k]; if(uid===u.id && r && r.paid && mk>_cur) _advance += Number(r.amount)||0; }); });
+  const _periodRows = (_advance>0 ? `<tr><td colspan="2" style="color:#1c5fb0;"><b>ضمن المحصّل: مدفوع مقدمًا لأشهر قادمة:</b> ${fmt(_advance)} ر.س</td></tr>` : '') + `
       <tr><td colspan="2"><b>مستحقات فترة الإدارة الحالية (من ${monthLabel(_mStart)}):</b> ${_curUnpaid>0?'<span style="color:#c0392b;font-weight:700;">'+fmt(_curUnpaid)+' ر.س متأخرة</span>':'<span style="color:#1f9d55;font-weight:700;">مسددة ✅</span>'}</td></tr>
       <tr><td colspan="2"><b>مستحقات ما قبل الإدارة الحالية:</b> ${_priorUnpaid>0?'<span style="color:#c0392b;font-weight:700;">'+fmt(_priorUnpaid)+' ر.س</span>':'<span style="color:#1f9d55;font-weight:700;">لا يوجد ✅</span>'}</td></tr>`;
 
