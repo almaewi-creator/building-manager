@@ -2032,7 +2032,7 @@ function renderPayments(main){
         <td>${prev<0?`<span class="badge gray">${fmt(Math.abs(prev))} ر.س</span>`:'<span style="color:var(--text-dim);">—</span>'}</td>
         <td>${cur<0?`<span class="badge red">${fmt(Math.abs(cur))} ر.س</span>`:'<span style="color:var(--text-dim);">—</span>'}</td>
         <td><b style="color:var(--red);">${fmt(Math.abs(u.totalDue))} ر.س</b></td>
-        <td style="font-size:12px;color:var(--text-dim);">${lastNote?esc(lastNote.date)+' — '+esc(lastNote.text):'—'} <button class="icon-btn" style="margin-inline-start:4px;" onclick="openUnitModal('${u.id}')">✎</button></td>
+        <td style="font-size:12px;color:var(--text-dim);">${lastNote?esc(lastNote.date)+' — '+esc(lastNote.text):'—'} <button class="icon-btn" style="margin-inline-start:4px;" onclick="openUnitModal('${u.id}')">✎</button> <button class="icon-btn" onclick="openArrearsCollectModal('${u.id}')">💰 تحصيل</button></td>
       </tr>`;}).join('') + `</tbody></table>`;
   }
   defPanel.innerHTML = `<div class="panel-title">الأعضاء المتأخرون عن السداد (${defaulters.length} من ${state.units.length}) — إجمالي ${fmt(totalOwed)} ر.س</div>${defRows}`;
@@ -2159,6 +2159,73 @@ async function moveRoomPaymentMonth(roomId){
   syncRoomTx(roomId, from); syncRoomTx(roomId, to);
   state.paymentMoveLog = state.paymentMoveLog || [];
   state.paymentMoveLog.push({room:r.number, from, to, at:new Date().toISOString()});
+  await saveState(); closeModal(); render();
+}
+/* تحصيل متأخرات: يعلّم الأشهر المسددة، ويخفض المستحقات السابقة، ويضيف حركة إيراد للجزء الذي لا يدخل الرصيد تلقائيًا
+   (أشهر ما قبل استلام الإدارة + المستحقات السابقة) حتى يطابق التطبيق حساب البنك */
+function _arrearsUnpaidMonths(u){
+  return monthsBetweenInclusive(firstBillingMonthKey(), lastCompletedMonthKey()).filter(mk=>{
+    const r = state.payments[u.id+'|'+mk]; return !(r && r.paid);
+  });
+}
+function openArrearsCollectModal(unitId){
+  const u = state.units.find(x=>x.id===unitId); if(!u) return;
+  const months = _arrearsUnpaidMonths(u);
+  const prevOwed = Math.max(0, -Number(u.arrearsPrevious||0));
+  const start = incomeStartKey();
+  const fee = Number(u.monthlyFee||200);
+  const monthRows = months.map(mk=>{
+    const r = state.payments[u.id+'|'+mk]; const amt = r ? Number(r.amount)||0 : fee;
+    return `<label style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #eef0f2;cursor:pointer;">
+      <span><input type="checkbox" class="arr-m" data-mk="${mk}" data-amt="${amt}" onchange="updateArrearsTotal()"> ${monthLabel(mk)} <span style="font-size:11px;color:var(--text-dim);">${mk<start?'(قبل الاستلام)':''}</span></span><b>${fmt(amt)} ر.س</b></label>`;
+  }).join('') || '<div class="empty">لا توجد أشهر متأخرة غير مسددة</div>';
+  showModal(`
+    <h3>تحصيل متأخرات — ${esc(u.number)} (${esc(u.owner)})</h3>
+    <div class="field"><label>الأشهر التي دفعها المالك</label><div style="max-height:200px;overflow:auto;">${monthRows}</div></div>
+    ${prevOwed>0?`<div class="field"><label>من المستحقات السابقة (المتبقي ${fmt(prevOwed)} ر.س)</label><input id="f-arr-prev" type="number" min="0" max="${prevOwed}" value="0" oninput="updateArrearsTotal()"></div>`:''}
+    <div class="field"><label>تاريخ الإيداع</label><input id="f-arr-date" type="date" value="${todayISODate()}"></div>
+    <div class="field"><label>طريقة الدفع</label><select id="f-arr-method"><option>تحويل</option><option>كاش</option></select></div>
+    <div class="field"><label>مكان الاستلام</label><select id="f-arr-place"><option value="bank">حساب العمارة (البنك)</option><option value="custody">عهدة المدير (حسابي)</option><option value="cash">نقد</option></select></div>
+    <div id="arr-total" style="font-weight:800;font-size:15px;margin:8px 0;">الإجمالي: 0 ر.س</div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeModal()">إلغاء</button><button class="btn" onclick="saveArrearsCollection('${unitId}')">حفظ</button></div>`);
+}
+function updateArrearsTotal(){
+  let t=0; document.querySelectorAll('.arr-m').forEach(c=>{ if(c.checked) t+=Number(c.dataset.amt)||0; });
+  const p=document.getElementById('f-arr-prev'); if(p) t+=Number(p.value)||0;
+  const el=document.getElementById('arr-total'); if(el) el.textContent='الإجمالي: '+fmt(t)+' ر.س';
+}
+async function saveArrearsCollection(unitId){
+  const u = state.units.find(x=>x.id===unitId); if(!u) return;
+  const date = (document.getElementById('f-arr-date')||{}).value || todayISODate();
+  const method = (document.getElementById('f-arr-method')||{}).value || 'تحويل';
+  const place = (document.getElementById('f-arr-place')||{}).value || 'bank';
+  const picked = [...document.querySelectorAll('.arr-m')].filter(c=>c.checked).map(c=>c.dataset.mk);
+  const prevOwed = Math.max(0, -Number(u.arrearsPrevious||0));
+  let prevAmt = Number((document.getElementById('f-arr-prev')||{}).value)||0;
+  if(prevAmt<0) prevAmt=0; if(prevAmt>prevOwed) prevAmt=prevOwed;
+  if(!picked.length && !(prevAmt>0)){ alert('اختر شهرًا أو أدخل مبلغًا من المستحقات السابقة'); return; }
+  if(!assertMonthOpen(date,'تسجيل تحصيل في')) return;
+  for(const mk of picked){ if(!assertMonthOpen(mk,'تعليم هذا الشهر مدفوعًا')) return; }
+  const start = incomeStartKey();
+  let txAmount = prevAmt; const labels=[];
+  picked.forEach(mk=>{
+    const key = u.id+'|'+mk; const r = state.payments[key] || {paid:false, amount:u.monthlyFee||200};
+    const amt = Number(r.amount)||0;
+    const nr = {paid:true, amount:amt}; nr.place = (place==='bank'?'bank':place); nr.depositDate = date;
+    state.payments[key] = nr;
+    if(mk < start) txAmount += amt; // قبل الاستلام: لا يدخل الرصيد تلقائيًا
+    labels.push(monthLabel(mk));
+  });
+  if(prevAmt>0) u.arrearsPrevious = Number(u.arrearsPrevious||0) + prevAmt; // المتأخر مخزّن بالسالب
+  if(!state.nextIds) state.nextIds = {}; if(!state.nextIds.tx) state.nextIds.tx = 1;
+  if(txAmount>0){
+    state.transactions.push({id:'t'+(state.nextIds.tx++), type:'income', amount:txAmount, category:'اشتراكات متأخرة', method,
+      date, place, hasAttachment:false,
+      note:'تحصيل متأخرات ما قبل الاستلام — '+u.number+' ('+u.owner+')'+(labels.length?': '+labels.join('، '):'')+(prevAmt>0?(labels.length?' + ':': ')+'مستحقات سابقة '+fmt(prevAmt)+' ر.س':'')});
+  }
+  state.arrearsLog = state.arrearsLog || [];
+  state.arrearsLog.push({unit:u.number, months:picked, prev:prevAmt, txAmount, date, at:new Date().toISOString()});
+  syncUnitFinancials(u);
   await saveState(); closeModal(); render();
 }
 async function savePaymentEdit(unitId){
