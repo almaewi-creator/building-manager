@@ -1665,6 +1665,19 @@ function buildOwnerStatementHTML(owner){
   });
   const totalDue = live.reduce((s,x)=>s+x.totalDue,0);
   const totalCollected = live.reduce((s,x)=>s+x.collected,0);
+  /* تفصيل المتأخرات: فترة الإدارة الحالية مقابل ما قبل الاستلام */
+  const _mStart = incomeStartKey(), _fb = firstBillingMonthKey(), _lc = lastCompletedMonthKey(), _cur = currentMonthKey();
+  let _curUnpaid = 0, _priorUnpaid = 0;
+  units.forEach(u=>{
+    _priorUnpaid += Math.max(0, -Number(u.arrearsPrevious||0)); // المتأخر مخزّن بالسالب
+    monthsBetweenInclusive(_fb, _lc).forEach(mk=>{
+      const r = state.payments[u.id+'|'+mk]; const amt = r ? Number(r.amount)||0 : Number(u.monthlyFee||200);
+      if(!(r && r.paid)){ if(mk < _mStart) _priorUnpaid += amt; else _curUnpaid += amt; }
+    });
+  });
+  const _periodRows = `
+      <tr><td colspan="2"><b>مستحقات فترة الإدارة الحالية (من ${monthLabel(_mStart)}):</b> ${_curUnpaid>0?'<span style="color:#c0392b;font-weight:700;">'+fmt(_curUnpaid)+' ر.س متأخرة</span>':'<span style="color:#1f9d55;font-weight:700;">مسددة ✅</span>'}</td></tr>
+      <tr><td colspan="2"><b>مستحقات ما قبل الإدارة الحالية:</b> ${_priorUnpaid>0?'<span style="color:#c0392b;font-weight:700;">'+fmt(_priorUnpaid)+' ر.س</span>':'<span style="color:#1f9d55;font-weight:700;">لا يوجد ✅</span>'}</td></tr>`;
 
   let unitsRows = '';
   live.forEach(({u,collected,arrearsPrevious,duesThisYear,totalDue})=>{
@@ -1680,7 +1693,7 @@ function buildOwnerStatementHTML(owner){
 
   let paymentsRows = '';
   const stmtStartMonth = firstBillingMonthKey();
-  const stmtEndMonth = lastCompletedMonthKey();
+  const stmtEndMonth = currentMonthKey();
   units.forEach(u=>{
     /* List every month in the billing range, not just ones with an explicit
        saved record — otherwise an unpaid month nobody has clicked on yet
@@ -1689,11 +1702,14 @@ function buildOwnerStatementHTML(owner){
     const months = monthsBetweenInclusive(stmtStartMonth, stmtEndMonth);
     months.forEach(month=>{
       const rec = state.payments[u.id+'|'+month] || {paid:false, amount:u.monthlyFee||200};
+      const isCur = month===currentMonthKey();
+      const period = month < incomeStartKey() ? 'قبل الإدارة الحالية' : 'الإدارة الحالية';
       paymentsRows += `<tr>
         <td>${u.number}</td>
         <td>${monthLabel(month)}</td>
+        <td style="color:#7a746b;">${period}</td>
         <td>${fmt(rec.amount)} ر.س</td>
-        <td style="color:${rec.paid?'#1f9d55':'#c0392b'};font-weight:700;">${rec.paid?'مدفوعة':'غير مدفوعة'}</td>
+        <td style="color:${rec.paid?'#1f9d55':(isCur?'#7a746b':'#c0392b')};font-weight:700;">${rec.paid?'مدفوعة':(isCur?'مستحقة (الشهر الجاري)':'غير مدفوعة')}</td>
       </tr>`;
     });
   });
@@ -1711,7 +1727,7 @@ function buildOwnerStatementHTML(owner){
     </div>
     <table class="stmt-info">
       <tr><td><b>اسم المالك:</b> ${esc(owner.name)}</td><td><b>رقم الجوال:</b> <span dir="ltr">${esc(owner.phone||'—')}</span></td></tr>
-      <tr><td><b>عدد الشقق:</b> ${units.length}</td><td><b>إجمالي المستحقات:</b> <span style="color:${totalDue<0?'#c0392b':'#1f9d55'}">${fmt(totalDue)} ر.س</span></td></tr>
+      <tr><td><b>عدد الشقق:</b> ${units.length}</td><td><b>إجمالي المستحقات:</b> <span style="color:${totalDue<0?'#c0392b':'#1f9d55'}">${fmt(totalDue)} ر.س</span></td></tr>${_periodRows}
     </table>
 
     <div class="stmt-section-title">بيانات الشقق والمستحقات</div>
@@ -1722,8 +1738,8 @@ function buildOwnerStatementHTML(owner){
 
     <div class="stmt-section-title">سجل الدفعات الشهرية</div>
     <div class="stmt-table-scroll"><table class="stmt-table">
-      <thead><tr><th>الشقة</th><th>الشهر</th><th>المبلغ</th><th>الحالة</th></tr></thead>
-      <tbody>${paymentsRows || '<tr><td colspan="4">لا توجد دفعات مسجلة</td></tr>'}</tbody>
+      <thead><tr><th>الشقة</th><th>الشهر</th><th>الفترة</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+      <tbody>${paymentsRows || '<tr><td colspan="5">لا توجد دفعات مسجلة</td></tr>'}</tbody>
     </table></div>
 
     <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
