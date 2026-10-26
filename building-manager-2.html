@@ -1699,7 +1699,10 @@ function buildOwnerStatementHTML(owner){
        saved record — otherwise an unpaid month nobody has clicked on yet
        (like a fresh default-due month) silently disappears from the printed
        log even though it's counted in the totals above. */
-    const months = monthsBetweenInclusive(stmtStartMonth, stmtEndMonth);
+    /* ندرج أيضًا الأشهر القادمة التي دُفعت مقدمًا (مثل رسوم نوفمبر المودَعة في أكتوبر) كي لا تختفي الدفعة من الكشف */
+    let _endM = stmtEndMonth;
+    Object.keys(state.payments||{}).forEach(k=>{ const [uid,mk]=k.split('|'); if(uid===u.id && state.payments[k] && state.payments[k].paid && mk>_endM) _endM = mk; });
+    const months = monthsBetweenInclusive(stmtStartMonth, _endM);
     months.forEach(month=>{
       const rec = state.payments[u.id+'|'+month] || {paid:false, amount:u.monthlyFee||200};
       const isCur = month===currentMonthKey();
@@ -1709,7 +1712,7 @@ function buildOwnerStatementHTML(owner){
         <td>${monthLabel(month)}</td>
         <td style="color:#7a746b;">${period}</td>
         <td>${fmt(rec.amount)} ر.س</td>
-        <td style="color:${rec.paid?'#1f9d55':(isCur?'#7a746b':'#c0392b')};font-weight:700;">${rec.paid?'مدفوعة':(isCur?'مستحقة (الشهر الجاري)':'غير مدفوعة')}</td>
+        <td style="color:${rec.paid?'#1f9d55':((isCur||month>currentMonthKey())?'#7a746b':'#c0392b')};font-weight:700;">${rec.paid?(month>currentMonthKey()?'مدفوعة مقدمًا ✅':'مدفوعة'):(month>currentMonthKey()?'لم يحن بعد':(isCur?'مستحقة (الشهر الجاري)':'غير مدفوعة'))}</td>
       </tr>`;
     });
   });
