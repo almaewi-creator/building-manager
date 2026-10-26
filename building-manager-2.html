@@ -2101,11 +2101,65 @@ function openPaymentEditModal(unitId){
       <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">للدفعة المستلمة قبل بداية شهرها (مثل رسوم نوفمبر المودَعة في 25 أكتوبر): الدفعة تبقى إيرادًا لشهر <b>${monthLabel(paymentsMonth)}</b>، لكن رصيد نهاية الشهر يحسبها من تاريخ الإيداع فيطابق كشف البنك.</div>
     </div>
     </div>
+    <div class="field" style="border-top:1px dashed var(--line,#dfe3e6);padding-top:10px;">
+      <label>نقل هذه الدفعة إلى شهر آخر</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input id="f-movemonth" type="month" style="flex:1;min-width:140px;">
+        <button class="btn-ghost btn-sm" onclick="movePaymentMonth('${unitId}')">نقل</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">يُنقل السداد (الحالة ومكان الاستلام وتاريخ الإيداع) من ${monthLabel(paymentsMonth)} إلى الشهر المختار. وإن كان الشهر المختار مسدّدًا فيتبادل الشهران حالتيهما.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="resetPaymentToDefault('${unitId}')">إعادة للمبلغ الافتراضي</button>
       <button class="btn" onclick="savePaymentEdit('${unitId}')">حفظ</button>
     </div>
   `);
+}
+/* نقل دفعة (أو تبديلها) بين شهرين لنفس الشقة/الغرفة: تتبدّل الحالة ومكان الاستلام وتاريخ الإيداع، وتبقى مبالغ كل شهر كما هي */
+function _swapPayState(a, b, fee){
+  const pick = r => ({paid:!!(r&&r.paid), place:r&&r.place, depositDate:r&&r.depositDate});
+  const sa = pick(a), sb = pick(b);
+  const mk = (base, st) => { const o = {paid:st.paid, amount: base&&base.amount!==undefined ? base.amount : fee}; if(st.place) o.place=st.place; if(st.depositDate) o.depositDate=st.depositDate; return o; };
+  return [mk(a, sb), mk(b, sa)]; // [جديد الشهر المصدر, جديد الشهر الهدف]
+}
+async function movePaymentMonth(unitId){
+  const to = (document.getElementById('f-movemonth')||{}).value || '';
+  const from = paymentsMonth;
+  if(!to){ alert('اختر الشهر المراد النقل إليه'); return; }
+  if(to===from){ alert('الشهر المختار هو نفس الشهر الحالي'); return; }
+  if(!assertMonthOpen(from,'نقل الدفعة')) return;
+  if(!assertMonthOpen(to,'نقل الدفعة إلى هذا الشهر')) return;
+  const u = state.units.find(x=>x.id===unitId); const fee = u.monthlyFee||200;
+  const ka = unitId+'|'+from, kb = unitId+'|'+to;
+  const a = state.payments[ka] || {paid:false, amount:fee}, b = state.payments[kb] || {paid:false, amount:fee};
+  if(!a.paid && !b.paid){ alert('لا توجد دفعة مسدّدة في أي من الشهرين لنقلها'); return; }
+  const msg = (a.paid && !b.paid) ? 'نقل سداد '+monthLabel(from)+' إلى '+monthLabel(to)+'؟' : 'تبديل حالة السداد بين '+monthLabel(from)+' و'+monthLabel(to)+'؟';
+  if(!confirm(msg)) return;
+  const [na, nb] = _swapPayState(a, b, fee);
+  state.payments[ka] = na; state.payments[kb] = nb;
+  state.paymentMoveLog = state.paymentMoveLog || [];
+  state.paymentMoveLog.push({unit:u.number, from, to, at:new Date().toISOString()});
+  await saveState(); closeModal(); render();
+}
+async function moveRoomPaymentMonth(roomId){
+  const to = (document.getElementById('f-rmovemonth')||{}).value || '';
+  const from = roomPaymentsMonth;
+  if(!to){ alert('اختر الشهر المراد النقل إليه'); return; }
+  if(to===from){ alert('الشهر المختار هو نفس الشهر الحالي'); return; }
+  if(!assertMonthOpen(from,'نقل دفعة الغرفة')) return;
+  if(!assertMonthOpen(to,'نقل دفعة الغرفة إلى هذا الشهر')) return;
+  const r = state.driverRooms.find(x=>x.id===roomId); const fee = r.monthlyRent||0;
+  const ka = roomId+'|'+from, kb = roomId+'|'+to;
+  const a = state.roomPayments[ka] || {paid:false, amount:fee}, b = state.roomPayments[kb] || {paid:false, amount:fee};
+  if(!a.paid && !b.paid){ alert('لا توجد دفعة مسدّدة في أي من الشهرين لنقلها'); return; }
+  const msg = (a.paid && !b.paid) ? 'نقل سداد '+monthLabel(from)+' إلى '+monthLabel(to)+'؟' : 'تبديل حالة السداد بين '+monthLabel(from)+' و'+monthLabel(to)+'؟';
+  if(!confirm(msg)) return;
+  const [na, nb] = _swapPayState(a, b, fee);
+  state.roomPayments[ka] = na; state.roomPayments[kb] = nb;
+  syncRoomTx(roomId, from); syncRoomTx(roomId, to);
+  state.paymentMoveLog = state.paymentMoveLog || [];
+  state.paymentMoveLog.push({room:r.number, from, to, at:new Date().toISOString()});
+  await saveState(); closeModal(); render();
 }
 async function savePaymentEdit(unitId){
   if(!assertMonthOpen(paymentsMonth,'تعديل الدفعة')) return;
@@ -2780,6 +2834,14 @@ function openRoomPaymentEditModal(roomId){
       <label>تاريخ الإيداع الفعلي (اختياري)</label>
       <input id="f-rpaydate" type="date" value="${rec.depositDate||''}">
       <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">للإيجار المستلم قبل بداية شهره (مثل إيجار نوفمبر المودَع في 25 أكتوبر): يبقى إيرادًا لشهر <b>${monthLabel(roomPaymentsMonth)}</b>، لكن رصيد نهاية الشهر يحسبه من تاريخ الإيداع فيطابق كشف البنك.</div>
+    </div>
+    <div class="field" style="border-top:1px dashed var(--line,#dfe3e6);padding-top:10px;">
+      <label>نقل هذه الدفعة إلى شهر آخر</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input id="f-rmovemonth" type="month" style="flex:1;min-width:140px;">
+        <button class="btn-ghost btn-sm" onclick="moveRoomPaymentMonth('${roomId}')">نقل</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">يُنقل السداد وتتبعه حركة الإيراد من ${monthLabel(roomPaymentsMonth)} إلى الشهر المختار. وإن كان الشهر المختار مسدّدًا فيتبادل الشهران حالتيهما.</div>
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="resetRoomPaymentToDefault('${roomId}')">إعادة للمبلغ الافتراضي</button>
