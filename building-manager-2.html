@@ -464,7 +464,7 @@ async function unlockMonth(m){
 function lockMonthsList(){
   const set = new Set();
   (state.transactions||[]).forEach(t=>{ if(t.date) set.add(String(t.date).slice(0,7)); });
-  (state.vouchers||[]).forEach(v=>{ if(v.date) set.add(String(v.date).slice(0,7)); });
+  (state.vouchers||[]).forEach(v=>{ if(v.date) set.add(vchAccMonth(v)); });
   Object.keys(state.lockedMonths||{}).forEach(m=>set.add(m));
   set.add(currentMonthKey());
   return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m)).sort().reverse();
@@ -3316,6 +3316,11 @@ let voucherEditingId = null; // set when the draft was opened from an existing h
 // from an expense row ("🧾 سند صرف") or carried over from a saved voucher
 // record that already has a linked transaction.
 let voucherSourceTxId = null;
+/* شهر السند في السجل: إن كان مصروفه المرتبط مسجَّلًا على شهر آخر (دُفع في شهر ويخص غيره) فالعبرة بشهر التسجيل */
+function vchAccMonth(v){
+  const t = v && v.txId ? (state.transactions||[]).find(x=>x.id===v.txId) : null;
+  return ((t && t.payDate && t.date) ? t.date : (v.date||'')).slice(0,7);
+}
 function openVoucherForExpense(txId){
   const t = state.transactions.find(x=>x.id===txId);
   if(!t) return;
@@ -3389,7 +3394,7 @@ function renderVoucher(main){
   if(!state.vouchers) state.vouchers = [];
   const vchAllTotal = state.vouchers.reduce((s,v)=>s+vchTotalAmount(v), 0);
   const vchCurMonth = currentMonthKey();
-  const vchMonthVouchers = state.vouchers.filter(v=>(v.date||'').slice(0,7)===vchCurMonth);
+  const vchMonthVouchers = state.vouchers.filter(v=>vchAccMonth(v)===vchCurMonth);
   const vchMonthTotal = vchMonthVouchers.reduce((s,v)=>s+vchTotalAmount(v), 0);
   const vchStats = document.createElement('div');
   vchStats.className = 'stats-row';
@@ -3584,7 +3589,7 @@ function renderVoucherHistory(main){
   filters.querySelector('#vchSyncNoBtn').addEventListener('click', syncExpenseNotesWithVoucherNumbers);
 
   const list = voucherHistoryMonth
-    ? state.vouchers.filter(v=>(v.date||'').slice(0,7)===voucherHistoryMonth)
+    ? state.vouchers.filter(v=>vchAccMonth(v)===voucherHistoryMonth)
     : state.vouchers.slice();
   list.sort((a,b)=> b.no - a.no);
   filters.querySelector('#vchPrintAllBtn').addEventListener('click', ()=> printAllVouchersInHistory(list));
@@ -3594,7 +3599,7 @@ function renderVoucherHistory(main){
   panel.className = 'panel';
   const rows = list.map(v=>`<tr>
       <td><b style="color:#b3261e;">${String(v.no).padStart(4,'0')}</b></td>
-      <td>${esc(v.date)}</td>
+      <td>${esc(v.date)}${vchAccMonth(v)!==(v.date||'').slice(0,7)?`<div style="font-size:10px;color:var(--text-dim);">يُحسب على ${monthLabel(vchAccMonth(v))}</div>`:''}</td>
       <td>${esc(v.to)||'—'}</td>
       <td>${esc(v.unit)||'—'}</td>
       <td><b>${esc(v.amount||'0')}${v.sub?'.'+esc(v.sub):''} ${VCH_CUR[v.cur||'SAR'].main}</b></td>
