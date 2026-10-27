@@ -980,7 +980,7 @@ function closingBalanceAt(k){
   });
   let inc=0, exp=0;
   state.transactions.forEach(t=>{
-    const m=((t.type==='income' && t.depositDate) ? t.depositDate : (t.date||'')).slice(0,7); if(!m || m>k) return;
+    const m=((t.type==='income' && t.depositDate) ? t.depositDate : (t.type==='expense' && t.payDate ? t.payDate : (t.date||''))).slice(0,7); if(!m || m>k) return;
     if(t.type==='income') inc+=Number(t.amount)||0; else if(t.type==='expense') exp+=Number(t.amount)||0;
   });
   return Number(state.openingBalance||0) + dues + inc - exp;
@@ -3203,7 +3203,7 @@ function renderFinance(main){
   sorted.forEach(t=>{
     const noVoucher = t.type==='expense' && !linkedTxIds.has(t.id) && !isBankFeeTx(t);
     rows += `<tr${noVoucher?' style="background:#fff8ec;"':''}>
-      <td>${t.date}</td>
+      <td>${t.date}${t.payDate?`<div style="font-size:10px;color:var(--text-dim);">دُفع ${t.payDate}</div>`:''}</td>
       <td>${statusBadge(t.type==='income'?'مدفوعة':'غير مدفوعة').replace(t.type==='income'?'مدفوعة':'غير مدفوعة', t.type==='income'?'إيراد':'مصروف')}</td>
       <td>${t.category}</td>
       <td>${t.method||'—'}</td>
@@ -3324,8 +3324,8 @@ function openVoucherForExpense(txId){
     amount: String(Math.trunc(amt)),
     sub: Math.round((amt%1)*100) ? String(Math.round((amt%1)*100)).padStart(2,'0') : '',
     for: t.category + (t.note ? ' — '+t.note : ''),
-    method: t.method==='تحويل' ? 'transfer' : 'cash',
-    date: t.date || todayISODate()
+    method: t.method==='تحويل' ? 'transfer' : (t.method==='بطاقة مدى'||t.method==='شبكة') ? 'card' : 'cash',
+    date: t.payDate || t.date || todayISODate()
   });
   voucherEditingId = null;
   voucherSourceTxId = txId;
@@ -3462,8 +3462,9 @@ function renderVoucher(main){
         <label><input type="radio" name="vch-pm" value="cash" id="vch-pm1" ${d.method==='cash'?'checked':''}> نقداً</label>
         <label><input type="radio" name="vch-pm" value="cheque" id="vch-pm2" ${d.method==='cheque'?'checked':''}> شيك</label>
         <label><input type="radio" name="vch-pm" value="transfer" id="vch-pm3" ${d.method==='transfer'?'checked':''}> تحويل بنكي</label>
+        <label><input type="radio" name="vch-pm" value="card" id="vch-pm4" ${d.method==='card'?'checked':''}> بطاقة (مدى/شبكة)</label>
       </div>
-      <div class="vch-two" id="vch-bankRow" ${d.method==='cash'?'hidden':''}>
+      <div class="vch-two" id="vch-bankRow" ${(d.method==='cash'||d.method==='card')?'hidden':''}>
         <div class="vch-f"><span id="vch-refLbl">${d.method==='cheque'?'رقم الشيك':'رقم الحوالة'}</span><input class="vch-grow" id="vch-ref" value="${esc(d.ref)}"></div>
         <div class="vch-f"><span>على بنك</span><input class="vch-grow" id="vch-bank" value="${esc(d.bank)}"></div>
       </div>
@@ -3517,7 +3518,7 @@ function renderVoucher(main){
 
   card.querySelectorAll('input[name=vch-pm]').forEach(r=>r.addEventListener('change',()=>{
     d.method = card.querySelector('input[name=vch-pm]:checked').value;
-    q('#vch-bankRow').hidden = d.method==='cash';
+    q('#vch-bankRow').hidden = (d.method==='cash'||d.method==='card');
     q('#vch-refLbl').textContent = d.method==='cheque' ? 'رقم الشيك' : 'رقم الحوالة';
   }));
 
@@ -3607,7 +3608,7 @@ function renderVoucherHistory(main){
 function buildVoucherCardHTML(no, data){
   const d = data || voucherDraft;
   const c = VCH_CUR[d.cur]||VCH_CUR.SAR;
-  const payLabel = d.method==='cash'?'نقداً':d.method==='cheque'?'شيك':'تحويل بنكي';
+  const payLabel = d.method==='cash'?'نقداً':d.method==='cheque'?'شيك':d.method==='card'?'بطاقة (مدى/شبكة)':'تحويل بنكي';
   return `
     <div class="vch-card">
       <header>
@@ -3629,7 +3630,7 @@ function buildVoucherCardHTML(no, data){
         <div class="vch-f"><span>اصرفوا للسيد / السادة</span><div class="vch-grow vch-val">${esc(d.to)||'—'}</div></div>
         <div class="vch-f"><span>مبلغ وقدره</span><div class="vch-words">${vchAmountWords(d)}</div></div>
         <div class="vch-f"><span>وذلك عن</span><div class="vch-grow vch-val">${esc(d.for)||'—'}</div></div>
-        <div class="vch-f vch-pay"><span>طريقة الدفع</span><b>${payLabel}</b>${d.method!=='cash'?` — ${d.method==='cheque'?'رقم الشيك':'رقم الحوالة'}: ${esc(d.ref)||'—'} — على بنك: ${esc(d.bank)||'—'}`:''}</div>
+        <div class="vch-f vch-pay"><span>طريقة الدفع</span><b>${payLabel}</b>${(d.method!=='cash'&&d.method!=='card')?` — ${d.method==='cheque'?'رقم الشيك':'رقم الحوالة'}: ${esc(d.ref)||'—'} — على بنك: ${esc(d.bank)||'—'}`:''}</div>
         <div class="vch-two">
           <div class="vch-f"><span>البند</span><div class="vch-grow vch-val">${esc(d.unit)||'—'}</div></div>
           <div class="vch-f"><span>ملاحظات</span><div class="vch-grow vch-val">${esc(d.note)||'—'}</div></div>
@@ -3754,13 +3755,16 @@ function syncVoucherExpenseTx(voucherNo, draft, existingTxId){
     type:'expense',
     amount,
     category: draft.unit || draft.for || 'سند صرف',
-    method: draft.method==='cash' ? 'كاش' : 'تحويل',
+    method: draft.method==='cash' ? 'كاش' : draft.method==='card' ? 'بطاقة مدى' : 'تحويل',
     date: draft.date || todayISODate(),
     note: 'سند صرف رقم '+label + (draft.for ? ' — '+draft.for : ''),
     voucherNo
   };
   let tx = existingTxId ? state.transactions.find(t=>t.id===existingTxId) : null;
   if(tx){
+    if(draft.method==='card' && (tx.method==='شبكة'||tx.method==='بطاقة مدى')) payload.method = tx.method; // لا نفقد التفريق بين مدى وشبكة
+    if(tx.payDate && payload.date===tx.payDate){ delete payload.date; } // شهر التسجيل المنقول يبقى كما هو
+    else if(tx.payDate){ delete tx.payDate; }
     Object.assign(tx, payload);
   } else {
     if(!state.nextIds) state.nextIds = {};
@@ -3973,10 +3977,11 @@ function openTxModal(id){
     <div class="field"><label>الفئة</label><input id="f-txcat" placeholder="مثال: دفعات إيجار، صيانة، كهرباء" value="${t?esc(t.category):''}"></div>
     <div class="two-col">
       <div class="field"><label>طريقة الدفع</label>
-        <select id="f-txmethod"><option value="كاش" ${!t||t.method==='كاش'?'selected':''}>كاش</option><option value="تحويل" ${t&&t.method==='تحويل'?'selected':''}>تحويل بنكي</option></select>
+        <select id="f-txmethod"><option value="كاش" ${!t||t.method==='كاش'?'selected':''}>كاش</option><option value="تحويل" ${t&&t.method==='تحويل'?'selected':''}>تحويل بنكي</option><option value="بطاقة مدى" ${t&&t.method==='بطاقة مدى'?'selected':''}>بطاقة مدى</option><option value="شبكة" ${t&&t.method==='شبكة'?'selected':''}>شبكة</option></select>
       </div>
-      <div class="field"><label>التاريخ</label><input id="f-txdate" type="date" value="${t?t.date:new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>تاريخ الدفع الفعلي</label><input id="f-txdate" type="date" value="${t?(t.payDate||t.date):todayISODate()}"></div>
     </div>
+    <div class="field"><label>يُسجَّل على شهر (اختياري — للمصروف الذي دُفع في شهر ويخص شهرًا آخر)</label><input id="f-txacc" type="month" value="${t&&t.payDate?t.date.slice(0,7):''}"><div style="font-size:11px;color:var(--text-dim);margin-top:2px;">اتركه فارغًا ليُسجَّل في شهر تاريخ الدفع. الرصيد الفعلي يتأثر بتاريخ الدفع دائمًا.</div></div>
     <div class="field"><label>مكان المبلغ</label>
       <select id="f-txplace">
         <option value="" ${!t||!t.place?'selected':''}>تلقائي (حسب الإعدادات)</option>
@@ -4038,6 +4043,9 @@ async function saveTx(id){
   const method = document.getElementById('f-txmethod').value;
   const note = document.getElementById('f-txnote').value.trim();
   const date = document.getElementById('f-txdate').value;
+  const accMonth = (document.getElementById('f-txacc')||{}).value || '';
+  let accDate = date, payDate;
+  if(type==='expense' && accMonth && date && accMonth !== date.slice(0,7)){ payDate = date; accDate = accMonth+'-01'; }
   const placeEl = document.getElementById('f-txplace');
   const place = placeEl ? placeEl.value : '';
   const fileInput = document.getElementById('f-txfile');
@@ -4046,17 +4054,22 @@ async function saveTx(id){
   let tx;
   if(id){
     tx = state.transactions.find(x=>x.id===id);
-    if(!assertMonthOpen(tx.date,'تعديل هذه الحركة') || !assertMonthOpen(date,'نقل الحركة إلى هذا الشهر')) return;
+    if(!assertMonthOpen(tx.date,'تعديل هذه الحركة') || !assertMonthOpen(accDate,'نقل الحركة إلى هذا الشهر')) return;
+    if(tx.payDate && !assertMonthOpen(tx.payDate,'تعديل هذه الحركة (شهر الدفع)')) return;
+    if(payDate && !assertMonthOpen(payDate,'تسجيل دفعة فيه')) return;
     if(tx.roomPayKey){
       // حركة مرتبطة بدفعة غرفة: تبقى إيرادًا ويتزامن مبلغها مع صفحة الغرف
       if(type!=='income'){ alert('هذه الحركة مرتبطة بدفعة إيجار غرفة ولا يمكن تحويلها إلى مصروف. احذفها أو عدّل الدفعة من صفحة غرف السواقين.'); return; }
       const rp = state.roomPayments && state.roomPayments[tx.roomPayKey];
       if(rp) rp.amount = amount;
     }
-    Object.assign(tx, {type, amount, category, method, note, date, place});
+    Object.assign(tx, {type, amount, category, method, note, date:accDate, place});
+    if(payDate) tx.payDate = payDate; else delete tx.payDate;
   } else {
-    if(!assertMonthOpen(date,'إضافة حركة فيه')) return;
-    tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date, place, hasAttachment:false};
+    if(!assertMonthOpen(accDate,'إضافة حركة فيه')) return;
+    if(payDate && !assertMonthOpen(payDate,'تسجيل دفعة فيه')) return;
+    tx = {id:'t'+(state.nextIds.tx++), type, amount, category, method, note, date:accDate, place, hasAttachment:false};
+    if(payDate) tx.payDate = payDate;
     state.transactions.push(tx);
   }
 
@@ -4088,7 +4101,7 @@ async function saveTx(id){
 }
 async function deleteTx(id){
   const tx = state.transactions.find(t=>t.id===id);
-  if(tx && !assertMonthOpen(tx.date,'حذف هذه الحركة')) return;
+  if(tx && (!assertMonthOpen(tx.date,'حذف هذه الحركة') || (tx.payDate && !assertMonthOpen(tx.payDate,'حذف هذه الحركة (شهر الدفع)')))) return;
   if(tx && tx.roomPayKey && state.roomPayments && state.roomPayments[tx.roomPayKey]){
     // حذف حركة إيجار غرفة = إلغاء الدفعة في صفحة الغرف، حتى لا يختلف الرقمان
     state.roomPayments[tx.roomPayKey].paid = false;
