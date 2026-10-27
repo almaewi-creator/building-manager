@@ -3348,7 +3348,7 @@ function openVoucherForExpense(txId){
     amount: String(Math.trunc(amt)),
     sub: Math.round((amt%1)*100) ? String(Math.round((amt%1)*100)).padStart(2,'0') : '',
     for: t.category + (t.note ? ' — '+t.note : ''),
-    method: t.method==='تحويل' ? 'transfer' : (t.method==='بطاقة مدى'||t.method==='شبكة') ? 'card' : 'cash',
+    method: t.method==='تحويل' ? 'transfer' : (t.method==='بطاقة مدى'||t.method==='شبكة'||t.method==='شراء عبر نقاط البيع') ? 'card' : 'cash',
     date: t.payDate || t.date || todayISODate()
   });
   voucherEditingId = null;
@@ -3486,7 +3486,7 @@ function renderVoucher(main){
         <label><input type="radio" name="vch-pm" value="cash" id="vch-pm1" ${d.method==='cash'?'checked':''}> نقداً</label>
         <label><input type="radio" name="vch-pm" value="cheque" id="vch-pm2" ${d.method==='cheque'?'checked':''}> شيك</label>
         <label><input type="radio" name="vch-pm" value="transfer" id="vch-pm3" ${d.method==='transfer'?'checked':''}> تحويل بنكي</label>
-        <label><input type="radio" name="vch-pm" value="card" id="vch-pm4" ${d.method==='card'?'checked':''}> بطاقة (مدى/شبكة)</label>
+        <label><input type="radio" name="vch-pm" value="card" id="vch-pm4" ${d.method==='card'?'checked':''}> بطاقة / نقاط بيع</label>
       </div>
       <div class="vch-two" id="vch-bankRow" ${(d.method==='cash'||d.method==='card')?'hidden':''}>
         <div class="vch-f"><span id="vch-refLbl">${d.method==='cheque'?'رقم الشيك':'رقم الحوالة'}</span><input class="vch-grow" id="vch-ref" value="${esc(d.ref)}"></div>
@@ -3632,7 +3632,7 @@ function renderVoucherHistory(main){
 function buildVoucherCardHTML(no, data){
   const d = data || voucherDraft;
   const c = VCH_CUR[d.cur]||VCH_CUR.SAR;
-  const payLabel = d.method==='cash'?'نقداً':d.method==='cheque'?'شيك':d.method==='card'?'بطاقة (مدى/شبكة)':'تحويل بنكي';
+  const payLabel = d.method==='cash'?'نقداً':d.method==='cheque'?'شيك':d.method==='card'?'بطاقة / نقاط بيع':'تحويل بنكي';
   return `
     <div class="vch-card">
       <header>
@@ -3786,7 +3786,7 @@ function syncVoucherExpenseTx(voucherNo, draft, existingTxId){
   };
   let tx = existingTxId ? state.transactions.find(t=>t.id===existingTxId) : null;
   if(tx){
-    if(draft.method==='card' && (tx.method==='شبكة'||tx.method==='بطاقة مدى')) payload.method = tx.method; // لا نفقد التفريق بين مدى وشبكة
+    if(draft.method==='card' && (tx.method==='شبكة'||tx.method==='بطاقة مدى'||tx.method==='شراء عبر نقاط البيع')) payload.method = tx.method; // لا نفقد التفريق بين مدى وشبكة
     if(tx.payDate && payload.date===tx.payDate){ delete payload.date; } // شهر التسجيل المنقول يبقى كما هو
     else if(tx.payDate){ delete tx.payDate; }
     Object.assign(tx, payload);
@@ -4003,7 +4003,7 @@ function openTxModal(id){
     <div class="field"><label>الفئة</label><input id="f-txcat" placeholder="مثال: دفعات إيجار، صيانة، كهرباء" value="${t?esc(t.category):''}"></div>
     <div class="two-col">
       <div class="field"><label>طريقة الدفع</label>
-        <select id="f-txmethod"><option value="كاش" ${!t||t.method==='كاش'?'selected':''}>كاش</option><option value="تحويل" ${t&&t.method==='تحويل'?'selected':''}>تحويل بنكي</option><option value="بطاقة مدى" ${t&&t.method==='بطاقة مدى'?'selected':''}>بطاقة مدى</option><option value="شبكة" ${t&&t.method==='شبكة'?'selected':''}>شبكة</option></select>
+        <select id="f-txmethod"><option value="كاش" ${!t||t.method==='كاش'?'selected':''}>كاش</option><option value="تحويل" ${t&&t.method==='تحويل'?'selected':''}>تحويل بنكي</option><option value="بطاقة مدى" ${t&&t.method==='بطاقة مدى'?'selected':''}>بطاقة مدى</option><option value="شراء عبر نقاط البيع" ${t&&(t.method==='شراء عبر نقاط البيع'||t.method==='شبكة')?'selected':''}>شراء عبر نقاط البيع</option></select>
       </div>
       <div class="field"><label>تاريخ الدفع الفعلي</label><input id="f-txdate" type="date" value="${t?(t.payDate||t.date):todayISODate()}"></div>
     </div>
