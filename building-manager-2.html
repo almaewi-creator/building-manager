@@ -469,6 +469,24 @@ function lockMonthsList(){
   set.add(currentMonthKey());
   return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m)).sort().reverse();
 }
+/* تسجيل المصروفات الجديدة على شهر محدد: المصروف الذي تاريخ دفعه قبل هذا الشهر يُسجَّل عليه تلقائيًا ويُحفظ تاريخ الدفع الفعلي */
+function applyExpenseAccMonth(date){
+  const m = state.expenseAccMonth || '';
+  if(!m || !date || date.slice(0,7) >= m) return {date, payDate:undefined};
+  return {date: m+'-01', payDate: date};
+}
+async function setExpenseAccMonth(v){
+  state.expenseAccMonth = v || '';
+  await saveState(); render();
+}
+function renderAccMonthPanel(main){
+  const p = document.createElement('div'); p.className='panel';
+  p.innerHTML = '<div class="panel-title">تسجيل المصروفات الجديدة على شهر</div>'
+    +'<p style="font-size:12.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">إذا اخترت شهرًا، فأي مصروف أو سند جديد تاريخ دفعه قبل هذا الشهر يُسجَّل عليه تلقائيًا، ويبقى تاريخ الدفع الفعلي محفوظًا. اتركه فارغًا ليرجع التسجيل حسب تاريخ الدفع.</p>'
+    +'<div class="field"><label>الشهر</label><input type="month" id="f-accmonth" value="'+(state.expenseAccMonth||'')+'" onchange="setExpenseAccMonth(this.value)"></div>'
+    +(state.expenseAccMonth?'<div style="font-size:12.5px;font-weight:700;color:var(--green);">مفعّل: المصروفات الجديدة تُسجَّل على '+monthLabel(state.expenseAccMonth)+'</div>':'');
+  main.appendChild(p);
+}
 function renderLockPanel(main){
   const panel = document.createElement('div');
   panel.className = 'panel';
@@ -2483,6 +2501,7 @@ function renderSettings(main){
     </div>
   `;
   main.appendChild(panel);
+  renderAccMonthPanel(main);
   renderLockPanel(main);
 
   const backupPanel = document.createElement('div');
@@ -3774,6 +3793,8 @@ function syncVoucherExpenseTx(voucherNo, draft, existingTxId){
   } else {
     if(!state.nextIds) state.nextIds = {};
     if(!state.nextIds.tx) state.nextIds.tx = 1;
+    const a = applyExpenseAccMonth(payload.date);
+    if(a.payDate){ payload.date = a.date; payload.payDate = a.payDate; }
     tx = Object.assign({id:'t'+(state.nextIds.tx++), hasAttachment:false}, payload);
     state.transactions.push(tx);
   }
@@ -4051,6 +4072,7 @@ async function saveTx(id){
   const accMonth = (document.getElementById('f-txacc')||{}).value || '';
   let accDate = date, payDate;
   if(type==='expense' && accMonth && date && accMonth !== date.slice(0,7)){ payDate = date; accDate = accMonth+'-01'; }
+  else if(!id && type==='expense' && !accMonth){ const a = applyExpenseAccMonth(date); accDate = a.date; payDate = a.payDate; }
   const placeEl = document.getElementById('f-txplace');
   const place = placeEl ? placeEl.value : '';
   const fileInput = document.getElementById('f-txfile');
