@@ -3456,7 +3456,9 @@ function renderVoucher(main){
       </div>
       <div class="vch-title"><h2>سند صرف</h2><span>PAYMENT VOUCHER</span></div>
       <div class="vch-meta">
-        <label>رقم السند <input type="number" min="1" id="vch-no-input" class="vch-no" value="${state.nextVoucherNo}"></label>
+        <label>رقم السند <input type="number" min="1" id="vch-no-input" class="vch-no" value="${voucherEditingId?((state.vouchers.find(v=>v.id===voucherEditingId)||{}).no||state.nextVoucherNo):state.nextVoucherNo}" ${voucherEditingId?'readonly title="رقم سند محفوظ لا يتغير"':''}></label>
+        ${voucherEditingId?'<label style="font-size:11px;"><input type="checkbox" id="vch-no-unlock"> تغيير الرقم</label>':''}
+        <div id="vch-no-warn" style="color:#b3261e;font-size:12px;font-weight:700;"></div>
         <label>التاريخ <input type="date" id="vch-date" value="${esc(d.date)}"></label>
         <label>الموافق <span id="vch-hijri" style="min-width:130px;text-align:center;font-weight:600;">${vchHijri(d.date)}</span></label>
       </div>
@@ -3546,13 +3548,23 @@ function renderVoucher(main){
     q('#vch-refLbl').textContent = d.method==='cheque' ? 'رقم الشيك' : 'رقم الحوالة';
   }));
 
+  const _noWarn = ()=>{
+    const n = parseInt(q('#vch-no-input').value,10);
+    const dup = n ? vchDuplicateOf(n, voucherEditingId) : null;
+    q('#vch-no-warn').textContent = dup ? ('⚠ يوجد سند آخر بنفس الرقم '+String(n).padStart(4,'0')+' ('+(dup.date||'')+' — '+String(dup.for||'').slice(0,30)+'). الرقم التالي الفارغ: '+String(vchNextFreeNo()).padStart(4,'0')) : '';
+  };
+  const _unlock = q('#vch-no-unlock');
+  if(_unlock) _unlock.addEventListener('change',()=>{ if(_unlock.checked && !confirm('تغيير رقم سند محفوظ قد يخالف نسخته المطبوعة. تكمل؟')){ _unlock.checked=false; return; } q('#vch-no-input').readOnly = !_unlock.checked; });
   q('#vch-no-input').addEventListener('input',()=>{
     const n = parseInt(q('#vch-no-input').value,10);
-    if(n && n>=1) state.nextVoucherNo = n;
+    if(!voucherEditingId && n && n>=1) state.nextVoucherNo = n;
+    _noWarn();
   });
+  _noWarn();
   q('#vch-no-input').addEventListener('change', async ()=>{
     const n = parseInt(q('#vch-no-input').value,10);
     if(!n || n<1){ q('#vch-no-input').value = state.nextVoucherNo; return; }
+    if(voucherEditingId) return; // رقم سند محفوظ: يُعتمد عند الحفظ فقط
     state.nextVoucherNo = n;
     await saveState();
   });
@@ -3562,7 +3574,7 @@ function renderVoucher(main){
     // Make sure whatever number the person typed (even if they haven't
     // tabbed/blurred out of the field yet) is what actually gets used.
     const n = parseInt(q('#vch-no-input').value,10);
-    if(n && n>=1) state.nextVoucherNo = n;
+    if(n && n>=1) { if(voucherEditingId){ voucherDraft._editNo = n; } else state.nextVoucherNo = n; }
     printVoucher();
   });
 
@@ -3597,14 +3609,14 @@ function renderVoucherHistory(main){
       <option value="1">نسخة واحدة في الصفحة</option>
       <option value="2">نسختان في الصفحة</option>
     </select>
-    <button class="btn-ghost btn-sm" id="vchRenumberBtn" title="يرتب كل السندات حسب التاريخ ويعيد ترقيمها 1, 2, 3...">🔢 ترقيم تلقائي حسب التاريخ</button>
+    <button class="btn-ghost btn-sm" id="vchRestoreNoBtn" title="يعيد أرقام سبتمبر وأكتوبر إلى أرقامها القديمة المطبوعة">↩ استعادة الأرقام القديمة</button>
     <button class="btn-ghost btn-sm" id="vchSyncNoBtn" title="يجعل رقم السند المكتوب في ملاحظة كل مصروف مطابقاً لرقمه الحقيقي في سجل السندات (الأرقام المطبوعة على الورق لا تتغير)">🔄 مطابقة أرقام المصروفات مع السندات</button>
     <button class="btn-ghost btn-sm" id="vchFixDupBtn" title="يكتشف أرقام السندات المكررة في المصروفات ويعطي المكرر رقماً جديداً فقط، دون المساس ببقية الأرقام">🧹 إصلاح الأرقام المكررة</button>`;
   main.appendChild(filters);
   filters.querySelector('#vchHistMonth').addEventListener('change', e=>{ voucherHistoryMonth = e.target.value; render(); });
   filters.querySelector('#vchHistAllBtn').addEventListener('click', ()=>{ voucherHistoryMonth = voucherHistoryMonth ? '' : currentMonthKey(); render(); });
-  filters.querySelector('#vchRenumberBtn').addEventListener('click', renumberVouchersByDate);
   filters.querySelector('#vchFixDupBtn').addEventListener('click', fixDuplicateVoucherNumbers);
+  filters.querySelector('#vchRestoreNoBtn').addEventListener('click', restoreOldVoucherNumbers);
   filters.querySelector('#vchSyncNoBtn').addEventListener('click', syncExpenseNotesWithVoucherNumbers);
 
   const list = voucherHistoryMonth
@@ -3815,9 +3827,21 @@ async function backfillVoucherExpenseLinks(){
   render();
   alert('تم — تم ربط '+unlinked.length+' سند بحركات مصروف جديدة في الإيرادات والمصروفات.');
 }
+/* سند آخر (غير المفتوح للتعديل) له نفس الرقم؟ */
+function vchDuplicateOf(n, exceptId){
+  return (state.vouchers||[]).find(v=>v.no===n && v.id!==exceptId) || null;
+}
+function vchNextFreeNo(){
+  const used = new Set((state.vouchers||[]).map(v=>v.no));
+  let n = Math.max(0, ...used) + 1; return n;
+}
 async function printVoucher(){
   if(!state.vouchers) state.vouchers = [];
-  const no = state.nextVoucherNo;
+  const _exRec = voucherEditingId ? state.vouchers.find(v=>v.id===voucherEditingId) : null;
+  const no = _exRec ? (Number(voucherDraft._editNo)||_exRec.no) : state.nextVoucherNo;
+  delete voucherDraft._editNo;
+  { const dupV = vchDuplicateOf(no, voucherEditingId);
+    if(dupV && !confirm('⚠ يوجد سند آخر بنفس الرقم '+String(no).padStart(4,'0')+' (التاريخ '+(dupV.date||'')+' — '+String(dupV.for||'').slice(0,40)+').\n\nالأفضل أن تلغي وتختار الرقم التالي الفارغ: '+String(vchNextFreeNo()).padStart(4,'0')+'.\n\nهل تريد المتابعة بالرقم المكرر؟')) return; }
   {
     const ex = voucherEditingId ? state.vouchers.find(v=>v.id===voucherEditingId) : null;
     if(ex && !assertMonthOpen(ex.date,'تعديل هذا السند')) return;
@@ -3978,7 +4002,37 @@ async function fixDuplicateVoucherNumbers(){
   alert('تم — صُحّح '+changes.length+' رقم مكرر.'+(gaps.length?'\n\nأرقام غير مستخدمة (فجوات) للمراجعة: '+gaps.join('، '):''));
 }
 
+/* استعادة أرقام السندات القديمة (مرة واحدة) بعد الترقيم التلقائي بالتاريخ. الرقم الحالي -> الرقم القديم المطبوع */
+const VCH_RESTORE_MAP = {9:10,10:9,11:12,12:11,13:42,14:13,15:14,16:15,17:16,18:17,19:18,20:19,21:21,22:20,23:22,24:23,
+  25:24,26:25,27:26,28:27,29:28,30:29,31:31,32:33,33:34,34:30,35:43,36:35,37:36,38:32,39:41,40:37,41:39,42:40,43:38};
+async function restoreOldVoucherNumbers(){
+  if(Object.keys(state.lockedMonths||{}).length>0){ alert('🔒 توجد أشهر مُقفلة. افتح الإقفال أولًا من الإعدادات ثم أعد المحاولة.'); return; }
+  const vs = state.vouchers||[];
+  const plan=[], skipped=[];
+  vs.forEach(v=>{
+    const to = VCH_RESTORE_MAP[v.no];
+    if(!to || to===v.no) return;
+    const mo = (v.date||'').slice(0,7);
+    const okMonth = v.no<=24 ? mo==='2026-09' : mo==='2026-10';
+    if(!okMonth){ skipped.push(String(v.no).padStart(4,'0')+' ('+(v.date||'')+')'); return; }
+    plan.push({v, from:v.no, to});
+  });
+  if(!plan.length){ alert('لا يوجد ما يُستعاد.'+(skipped.length?'\nتخطّيت لاختلاف التاريخ: '+skipped.join('، '):'')); return; }
+  const lines = plan.slice().sort((a,b)=>a.from-b.from).map(p=>String(p.from).padStart(4,'0')+' ← '+String(p.to).padStart(4,'0')+'  ('+(p.v.date||'')+' — '+String(p.v.for||'').slice(0,28)+')').join('\n');
+  if(!confirm('سيُعاد '+plan.length+' سند إلى رقمه القديم المطبوع (الرقم الحالي ← القديم):\n\n'+lines+(skipped.length?'\n\nتخطّيت لاختلاف التاريخ: '+skipped.join('، '):'')+'\n\nتكمل؟')) return;
+  const re = /(سند صرف رقم\s*)(\d+)/;
+  plan.forEach(p=>{ p.v.no = p.to; });
+  plan.forEach(p=>{
+    const t = (state.transactions||[]).find(x=>x.id===p.v.txId);
+    if(t){ if(re.test(t.note||'')) t.note = t.note.replace(re,(m,a)=>a+String(p.to).padStart(4,'0')); t.voucherNo = p.to; }
+  });
+  state.nextVoucherNo = Math.max(44, ...vs.map(v=>v.no+1));
+  state.voucherRestoreLog = (state.voucherRestoreLog||[]).concat([{at:new Date().toISOString(), count:plan.length}]);
+  await saveState(); render();
+  alert('تم — أُعيد '+plan.length+' سند إلى رقمه القديم. راجع سجل السندات.');
+}
 async function renumberVouchersByDate(){
+  alert('أُوقفت إعادة الترقيم التلقائي حتى لا تتغير أرقام سندات مطبوعة أو موقَّعة.'); return;
   if(state.vouchers.length===0){ alert('لا توجد سندات في السجل بعد'); return; }
   if(Object.keys(state.lockedMonths||{}).length>0){ alert('🔒 توجد أشهر مُقفلة، وإعادة الترقيم تغيّر أرقام سندات مطبوعة. افتح الإقفال أولًا من الإعدادات إن كان ذلك ضروريًا فعلًا.'); return; }
   if(!confirm('سيُعاد ترتيب كل السندات (من كل الأشهر) حسب التاريخ من الأقدم للأحدث، وتُرقَّم تلقائيًا ١، ٢، ٣... بالتسلسل. ملاحظة: إذا كانت بعض السندات مطبوعة ورقيًا بأرقامها الحالية، رقمها المحفوظ هنا سيتغيّر وما بيطابق الورقة بعدها. تكملين؟')) return;
