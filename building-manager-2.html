@@ -3170,8 +3170,8 @@ function openAuditModal(){
 }
 
 let financeFilter = 'all';
-let financeCarry = (()=>{try{return localStorage.getItem('financeCarry')==='1';}catch(e){return false;}})(); // إيراد الشهر السابق يغطي مصروفات الشهر الحالي
-function toggleFinanceCarry(){ financeCarry=!financeCarry; try{localStorage.setItem('financeCarry',financeCarry?'1':'0');}catch(e){} render(); }
+let financeCarry = false; /* أُلغي الربط بين الأشهر: كل دفعة تُسجَّل على الشهر الذي تخصه */  // إيراد الشهر السابق يغطي مصروفات الشهر الحالي
+function toggleFinanceCarry(){ financeCarry=false; try{localStorage.setItem('financeCarry',financeCarry?'1':'0');}catch(e){} render(); }
 let financeMonth = dashDefaultMonth(); // '' means "كل الأشهر" (no month filter)
 /* إيداعات استُلمت في شهر لكنها تخص شهرًا لاحقًا (لها تاريخ إيداع فعلي) */
 function advanceDepositsHTML(month){
@@ -3206,8 +3206,7 @@ function renderFinance(main){
   filters.className='filters-row';
   filters.innerHTML = `<label style="font-size:13px;color:var(--text-dim);">الشهر:</label>
     <input type="month" id="financeMonthPicker" value="${financeMonth||currentMonthKey()}" ${financeMonth?'':'disabled'}>
-    <button class="btn-ghost btn-sm" onclick="financeMonth=financeMonth?'':currentMonthKey();render();">${financeMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>
-    ${financeMonth?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-right:8px;cursor:pointer;"><input type="checkbox" ${financeCarry?'checked':''} onchange="toggleFinanceCarry()"> إيراد الشهر السابق يُصرف في هذا الشهر</label><div style="font-size:11.5px;color:var(--text-dim);flex-basis:100%;">فعّله فقط إذا كان إيراد الشهر السابق هو ما يموّل مصروفات هذا الشهر. أما رسوم الشهر المودَعة قبل بدايته فسجّلها على شهرها نفسه واتركه مغلقًا.</div>`:''}`;
+    <button class="btn-ghost btn-sm" onclick="financeMonth=financeMonth?'':currentMonthKey();render();">${financeMonth?'عرض كل الأشهر':'عرض شهر محدد'}</button>`;
   main.appendChild(filters);
   filters.querySelector('#financeMonthPicker').onchange = (e)=>{ financeMonth = e.target.value; render(); };
 
