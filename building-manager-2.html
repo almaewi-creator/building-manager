@@ -9,16 +9,16 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
-    --navy:#0a6b3c;
-    --navy-2:#054a28;
-    --teal:#12a862;
-    --teal-dark:#0c7d47;
-    --teal-tint:#e6f7ee;
-    --bg:#f5faf7;
+    --navy:#0b86c9;
+    --navy-2:#06578a;
+    --teal:#18a9e0;
+    --teal-dark:#0a7fb8;
+    --teal-tint:#e3f4fc;
+    --bg:#eef7fd;
     --card:#ffffff;
-    --border:#dcece1;
+    --border:#d3e6f2;
     --text:#26282c;
-    --text-dim:#71807a;
+    --text-dim:#667b8a;
     --amber:#c98a2c;
     --amber-tint:#f7ecd6;
     --blue-tint:#eceef3;
@@ -28,13 +28,13 @@
     --red:#c1443a;
     --red-tint:#f8e6e3;
     --radius:14px;
-    --shadow:0 10px 28px rgba(10,60,35,.09);
+    --shadow:0 10px 28px rgba(7,80,125,.10);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
     font-family:'Tajawal', system-ui, sans-serif;
-    background:var(--bg);
+    background:linear-gradient(180deg,#e4f3fc 0%,#f2f9fe 35%,#f7fbfe 100%) fixed;
     color:var(--text);
     min-height:100vh;
   }
@@ -43,7 +43,7 @@
   /* Sidebar */
   .sidebar{
     width:230px;
-    background:linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+    background:linear-gradient(180deg, #1aa0dc 0%, #0b6fae 55%, #064e7e 100%);
     color:#dcf3e6;
     display:flex;
     flex-direction:column;
@@ -65,13 +65,13 @@
   }
   .sidebar-logo img{width:100%;height:100%;object-fit:contain;padding:3px;}
   .sidebar-title{font-size:13px;font-weight:700;color:#fff;line-height:1.3;}
-  .sidebar-sub{font-size:10.5px;color:#a9d9bc;margin-top:1px;}
+  .sidebar-sub{font-size:10.5px;color:#c4e8f8;margin-top:1px;}
   .nav{display:flex;flex-direction:column;gap:3px;flex:1;}
   .nav-item{
     display:flex;align-items:center;gap:10px;
     padding:10px 12px;border-radius:9px;
     font-size:13.5px;font-weight:500;
-    color:#c8ead6;cursor:pointer;
+    color:#d9f0fb;cursor:pointer;
     border:none;background:none;text-align:right;width:100%;
     font-family:inherit;
     transition:background .15s,color .15s;
@@ -85,9 +85,9 @@
     display:flex;align-items:center;gap:9px;
     padding:8px 6px;border-radius:9px;margin-bottom:8px;
   }
-  .avatar{width:30px;height:30px;border-radius:50%;background:#054a28;display:flex;align-items:center;justify-content:center;font-size:12px;color:#e6f7ee;flex-shrink:0;}
+  .avatar{width:30px;height:30px;border-radius:50%;background:#06578a;display:flex;align-items:center;justify-content:center;font-size:12px;color:#e3f4fc;flex-shrink:0;}
   .sidebar-user-name{font-size:12px;color:#fff;font-weight:600;}
-  .sidebar-user-role{font-size:10.5px;color:#a9d9bc;}
+  .sidebar-user-role{font-size:10.5px;color:#c4e8f8;}
 
   /* Main */
   .main{flex:1;padding:26px 30px;min-width:0;overflow-x:hidden;}
@@ -101,9 +101,9 @@
     font-family:inherit;display:inline-flex;align-items:center;gap:6px;
     transition:background .15s;
   }
-  .btn:hover{background:#095f36;}
+  .btn:hover{background:#06679a;}
   .btn-ghost{background:#fff;color:var(--text);border:1px solid var(--border);}
-  .btn-ghost:hover{background:#faf8f4;}
+  .btn-ghost:hover{background:#f1f9fe;}
   .btn-danger{background:var(--red-tint);color:var(--red);}
   .btn-danger:hover{background:#f2d3ce;}
   .btn-sm{padding:7px 12px;font-size:12.5px;border-radius:8px;}
@@ -2070,7 +2070,7 @@ function syncAllUnitsFinancials(){
   });
   return changed;
 }
-let paymentsMonth = currentMonthKey();
+let paymentsMonth = dashDefaultMonth();
 function renderPayments(main){
   topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو وشقة، مع إمكانية تعديل مبلغ أي شهر لأي شقة (مثال: فرق شهر أغسطس).',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printPaymentsReport()">🖨 طباعة كشف الشهر</button>'+
@@ -2093,9 +2093,10 @@ function renderPayments(main){
     const isCustom = rec.amount !== (u.monthlyFee||200);
     totalDue += Number(rec.amount);
     if(rec.paid) totalPaid += Number(rec.amount);
-    rows += `<tr>
-      <td><b>${u.number}</b></td>
-      <td>${u.owner}</td>
+    const lateAmt = Number(u.totalDue)<0 ? Math.abs(Number(u.totalDue)) : 0;
+    rows += `<tr${lateAmt?' style="background:#fff3f1;"':''}>
+      <td><b>${lateAmt?'<span title="متأخر عن السداد">🔴</span> ':''}${u.number}</b></td>
+      <td>${u.owner}${lateAmt?` <span class="badge red" style="font-size:10.5px;margin-inline-start:4px;">متأخر ${fmt(lateAmt)} ر.س</span>`:''}</td>
       <td>${fmt(rec.amount)} ر.س${isCustom?' <span class="badge amber" style="margin-right:4px;">مُعدَّل</span>':''}</td>
       <td>${statusBadge(rec.paid?'مدفوعة':'غير مدفوعة')}</td>
       <td>
@@ -2840,7 +2841,7 @@ async function saveSettings(){
   alert('تم حفظ الإعدادات ✅');
 }
 
-let roomPaymentsMonth = currentMonthKey();
+let roomPaymentsMonth = dashDefaultMonth();
 function renderDriverRooms(main){
   topbar(main, state.buildingName, 'غرف السواقين', 'إيجار غرف السواقين الخمسة — يُدار الآن بنفس طريقة الدفعات الشهرية للشقق: تحدد الشهر وتؤشر كل غرفة كمدفوعة أو غير مدفوعة.',
     '<button class="btn-ghost btn-sm" onclick="backfillRoomTx()">🔄 مزامنة الإيرادات</button> <button class="btn-ghost btn-sm" onclick="printDriverRoomsReport()">🖨 طباعة كشف الغرف</button>');
@@ -3171,7 +3172,7 @@ function openAuditModal(){
 let financeFilter = 'all';
 let financeCarry = (()=>{try{return localStorage.getItem('financeCarry')==='1';}catch(e){return false;}})(); // إيراد الشهر السابق يغطي مصروفات الشهر الحالي
 function toggleFinanceCarry(){ financeCarry=!financeCarry; try{localStorage.setItem('financeCarry',financeCarry?'1':'0');}catch(e){} render(); }
-let financeMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter)
+let financeMonth = dashDefaultMonth(); // '' means "كل الأشهر" (no month filter)
 /* إيداعات استُلمت في شهر لكنها تخص شهرًا لاحقًا (لها تاريخ إيداع فعلي) */
 function advanceDepositsHTML(month){
   if(!month) return '';
@@ -3408,7 +3409,7 @@ function newVoucherDraft(prefill){
 // asynchronously after auth), so building the draft now would throw and take
 // down the whole app. It's created lazily the first time the page is opened.
 let voucherDraft = null;
-let voucherHistoryMonth = currentMonthKey(); // '' means "كل الأشهر" (no month filter) in the vouchers log below
+let voucherHistoryMonth = dashDefaultMonth(); // '' means "كل الأشهر" (no month filter) in the vouchers log below
 let voucherEditingId = null; // set when the draft was opened from an existing history record, so printing updates it in place instead of creating a duplicate
 // id of an existing المصروفات transaction this voucher should stay linked to
 // instead of creating a second one — set either when the voucher was started
@@ -3492,7 +3493,7 @@ function renderVoucher(main){
 
   if(!state.vouchers) state.vouchers = [];
   const vchAllTotal = state.vouchers.reduce((s,v)=>s+vchTotalAmount(v), 0);
-  const vchCurMonth = currentMonthKey();
+  const vchCurMonth = dashDefaultMonth();
   const vchMonthVouchers = state.vouchers.filter(v=>vchAccMonth(v)===vchCurMonth);
   const vchMonthTotal = vchMonthVouchers.reduce((s,v)=>s+vchTotalAmount(v), 0);
   const vchStats = document.createElement('div');
@@ -3694,7 +3695,7 @@ function renderVoucherHistory(main){
     <button class="btn-ghost btn-sm" id="vchFixDupBtn" title="يكتشف أرقام السندات المكررة في المصروفات ويعطي المكرر رقماً جديداً فقط، دون المساس ببقية الأرقام">🧹 إصلاح الأرقام المكررة</button>`;
   main.appendChild(filters);
   filters.querySelector('#vchHistMonth').addEventListener('change', e=>{ voucherHistoryMonth = e.target.value; render(); });
-  filters.querySelector('#vchHistAllBtn').addEventListener('click', ()=>{ voucherHistoryMonth = voucherHistoryMonth ? '' : currentMonthKey(); render(); });
+  filters.querySelector('#vchHistAllBtn').addEventListener('click', ()=>{ voucherHistoryMonth = voucherHistoryMonth ? '' : dashDefaultMonth(); render(); });
   filters.querySelector('#vchFixDupBtn').addEventListener('click', fixDuplicateVoucherNumbers);
   filters.querySelector('#vchRestoreNoBtn').addEventListener('click', restoreOldVoucherNumbers);
   filters.querySelector('#vchSyncNoBtn').addEventListener('click', syncExpenseNotesWithVoucherNumbers);
