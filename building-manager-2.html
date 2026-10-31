@@ -1055,7 +1055,7 @@ function managerSalaryText(){
 }
 function setBankActual(){
   const cur = state.bankActual && state.bankActual.amount!==undefined ? state.bankActual.amount : '';
-  const v = prompt('اكتب رصيد حساب العمارة الآن كما يظهر في تطبيق البنك (بالريال):', cur);
+  const v = prompt('اكتب رصيد حساب العمارة كما يظهر في تطبيق بنك الرياض نفسه (وليس رقم هذا التطبيق):', cur);
   if(v===null) return;
   const n = Number(String(v).replace(/[^\d.\-]/g,''));
   if(isNaN(n) || String(v).trim()===''){ alert('رقم غير صالح'); return; }
@@ -1289,6 +1289,85 @@ function printDashboard(){
     '<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>');
   w.document.close();
 }
+/* ===== مركز المتابعة في لوحة التحكم: مهام الشهر + من لم يدفع + الغرف + المصروفات حسب الفئة ===== */
+let dashFocusMonth = '';
+function dashShiftMonth(mk,n){ let [y,m]=mk.split('-').map(Number); m+=n; while(m>12){m-=12;y++;} while(m<1){m+=12;y--;} return y+'-'+String(m).padStart(2,'0'); }
+function dashDefaultMonth(){ const cur=currentMonthKey(); return (new Date().getDate()>=25) ? dashShiftMonth(cur,1) : cur; }
+function dashWaLink(phone,msg){
+  let p=String(phone||'').replace(/\D/g,'');
+  if(p.startsWith('00')) p=p.slice(2); else if(p.startsWith('0')) p='966'+p.slice(1); else if(p.length===9 && p.startsWith('5')) p='966'+p;
+  return 'https://wa.me/'+p+'?text='+encodeURIComponent(msg);
+}
+function dashSetFocus(v){ dashFocusMonth=v; render(); }
+function renderDashFocus(main){
+  const mk = dashFocusMonth || dashDefaultMonth();
+  const cur = currentMonthKey();
+  const opts = [dashShiftMonth(cur,-1), cur, dashShiftMonth(cur,1)];
+  if(!opts.includes(mk)) opts.push(mk);
+  const units = state.units||[];
+  const unpaid = units.filter(u=>{ const r=state.payments[u.id+'|'+mk]; return !(r && r.paid); });
+  const paidN = units.length - unpaid.length;
+  const rooms = (state.driverRooms||[]).filter(r=>r.tenant && Number(r.monthlyRent)>0 && (!r.startMonth || r.startMonth<=mk));
+  const roomUnpaid = rooms.filter(r=>{ const p=state.roomPayments[r.id+'|'+mk]; return !(p && p.paid); });
+  const noAtt = (state.transactions||[]).filter(t=>t.type==='expense' && !t.hasAttachment && !isBankFeeTx(t));
+  const vch = state.vouchers||[];
+  const noVch = (state.transactions||[]).filter(t=>t.type==='expense' && !isBankFeeTx(t) && !vch.some(v=>v.txId===t.id) && !/سند صرف رقم/.test(t.note||''));
+  const pb = placeBalances();
+  const ba = state.bankActual && state.bankActual.amount!==undefined && state.bankActual.amount!=='' ? state.bankActual : null;
+  const bdiff = ba ? Number(ba.amount) - pb.bank : null;
+  const ageDays = ba ? Math.round((Date.now()-new Date(ba.date+'T00:00:00').getTime())/86400000) : null;
+  const bankOk = ba && Math.abs(bdiff)<0.005 && ageDays<=7;
+  const tasks = [
+    {ok: unpaid.length===0, label:'اشتراكات '+monthLabel(mk), detail: paidN+' من '+units.length+' دفعوا', go:"paymentsMonth='"+mk+"';goToView('payments')"},
+    {ok: roomUnpaid.length===0, label:'إيجار الغرف', detail: rooms.length? ((rooms.length-roomUnpaid.length)+' من '+rooms.length+' دفعوا') : 'لا غرف مؤجّرة', go:"roomPaymentsMonth='"+mk+"';goToView('driverRooms')"},
+    {ok: noAtt.length===0, label:'مرفقات المصروفات', detail: noAtt.length? (noAtt.length+' مصروف بلا مرفق') : 'كلها مرفقة', go:"financeMonth='';financeFilter='expense';goToView('finance')"},
+    {ok: noVch.length===0, label:'سندات الصرف', detail: noVch.length? (noVch.length+' مصروف بلا سند') : 'كلها لها سند', go:"goToView('voucher')"},
+    {ok: !!bankOk, label:'مطابقة البنك', detail: !ba ? 'لم تُدخل رصيد البنك الفعلي' : (Math.abs(bdiff)>=0.005 ? ('فرق '+fmt(Math.abs(bdiff))+' ر.س'+(bdiff>0?' (البنك أعلى)':' (التطبيق أعلى)')) : (ageDays>7?'آخر مطابقة قبل '+ageDays+' يومًا':'مطابق ✅')), go:"setBankActual()"}
+  ];
+  const doneN = tasks.filter(t=>t.ok).length;
+  const pct = Math.round(doneN/tasks.length*100);
+  const unlockedPast = Object.keys((state.transactions||[]).reduce((a,t)=>{ const m=(t.date||'').slice(0,7); if(m && m<cur && !isMonthLocked(m)) a[m]=1; return a; },{})).sort();
+  const panel = document.createElement('div'); panel.className='panel';
+  panel.style.cssText='margin-bottom:14px;';
+  const taskRows = tasks.map(t=>`<div onclick="${t.go}" style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #eef0f2;cursor:pointer;">
+      <span style="font-size:18px;">${t.ok?'✅':'⬜'}</span>
+      <div style="flex:1;"><div style="font-weight:700;font-size:13.5px;">${t.label}</div><div style="font-size:12px;color:${t.ok?'var(--green)':'var(--red)'};">${t.detail}</div></div>
+      <span style="color:var(--text-dim);">‹</span></div>`).join('');
+  const msgFor = u => 'السلام عليكم ورحمة الله وبركاته، أخي الكريم '+u.owner.split(' ').slice(0,2).join(' ')+'، تذكير ودّي بسداد اشتراك شهر '+monthLabel(mk)+' لـ'+u.number+' ('+fmt(Number(u.monthlyFee)||200)+' ريال) على حساب العمارة، وأرجو إرسال الإيصال بعد التحويل. جزاكم الله خيرًا.';
+  const unpaidRows = unpaid.map(u=>{
+    const owed = Number(u.arrearsPrevious)<0 ? Math.abs(Number(u.arrearsPrevious)) : 0;
+    const tel = String(u.phone||'').replace(/\D/g,'');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eef0f2;">
+      <div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:13px;">${esc(u.number)} — ${esc(u.owner)}</div>
+        ${owed?`<span class="badge red" style="font-size:10.5px;">متأخرات سابقة ${fmt(owed)}</span>`:''}</div>
+      ${tel?`<a class="btn-ghost btn-sm" style="text-decoration:none;" href="tel:${tel}">📞</a><a class="btn-ghost btn-sm" style="text-decoration:none;" target="_blank" rel="noopener" href="${dashWaLink(u.phone,msgFor(u))}">💬 تذكير</a>`:'<span style="font-size:11px;color:var(--text-dim);">لا جوال</span>'}
+    </div>`; }).join('');
+  const roomRows = (state.driverRooms||[]).map(r=>{
+    const occ = r.tenant && Number(r.monthlyRent)>0;
+    const p = state.roomPayments[r.id+'|'+mk]; const paid = !!(p&&p.paid);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #eef0f2;font-size:13px;">
+      <span><b>غرفة ${esc(r.number)}</b> — ${occ?esc(r.tenant):'<span style="color:var(--text-dim);">شاغرة</span>'}</span>
+      ${occ?`<span>${fmt(r.monthlyRent)} ر.س <span class="badge ${paid?'green':'red'}" style="margin-inline-start:6px;">${paid?'دفع':'لم يدفع'}</span></span>`:''}</div>`; }).join('');
+  const exp = (state.transactions||[]).filter(t=>t.type==='expense' && (t.date||'').slice(0,7)===mk);
+  const byCat = {}; exp.forEach(t=>{ const c=t.category||'عام'; byCat[c]=(byCat[c]||0)+(Number(t.amount)||0); });
+  const cats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const expTotal = cats.reduce((s,c)=>s+c[1],0);
+  const catRows = cats.slice(0,7).map(([c,v])=>`<div style="margin:6px 0;"><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>${esc(c)}</span><b>${fmt(v)} ر.س</b></div><div style="background:#eef0f2;border-radius:6px;height:7px;"><div style="width:${Math.max(3,Math.round(v/cats[0][1]*100))}%;background:#c0392b;opacity:.75;height:7px;border-radius:6px;"></div></div></div>`).join('');
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div class="panel-title" style="margin:0;">مركز المتابعة</div>
+      <label style="font-size:12.5px;">الشهر: <select onchange="dashSetFocus(this.value)" style="width:auto;">${opts.map(m=>`<option value="${m}" ${m===mk?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></label>
+    </div>
+    <div style="margin:10px 0 4px;display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;background:#eef0f2;border-radius:8px;height:10px;"><div style="width:${pct}%;background:${pct===100?'#1f9d55':'#d98e04'};height:10px;border-radius:8px;"></div></div>
+      <b style="font-size:13px;">${doneN} من ${tasks.length}</b></div>
+    ${taskRows}
+    ${unlockedPast.length?`<div style="font-size:12px;color:var(--text-dim);padding:8px 4px;">🔓 أشهر ماضية غير مقفلة: ${unlockedPast.map(monthLabel).join('، ')} — تُقفل بعد آخر إيداع وبعد المطابقة.</div>`:''}
+    <details ${unpaid.length&&unpaid.length<=12?'open':''} style="margin-top:10px;"><summary style="font-weight:800;font-size:13.5px;cursor:pointer;">من لم يدفع في ${monthLabel(mk)} (${unpaid.length})</summary>${unpaidRows||'<div class="empty">الكل دفع 🎉</div>'}</details>
+    <details style="margin-top:10px;"><summary style="font-weight:800;font-size:13.5px;cursor:pointer;">الغرف (${monthLabel(mk)})</summary>${roomRows}</details>
+    <details style="margin-top:10px;"><summary style="font-weight:800;font-size:13.5px;cursor:pointer;">المصروفات حسب الفئة — ${monthLabel(mk)} (${fmt(expTotal)} ر.س)</summary>${catRows||'<div class="empty">لا مصروفات في هذا الشهر</div>'}</details>`;
+  main.appendChild(panel);
+}
 function renderDashboard(main){
   topbar(main, state.buildingName, 'لوحة التحكم', 'نظرة عامة على حالة الأعضاء والاشتراكات والصيانة.', '<button class="btn-ghost btn-sm" onclick="printDashboard()">🖨 طباعة لوحة التحكم</button>');
 
@@ -1308,6 +1387,7 @@ function renderDashboard(main){
      or the dashboard net understates real income. */
   const netIncome = income + collected;
 
+  renderDashFocus(main);
   const alertDebtors = [...state.units].filter(u=>Number(u.totalDue)<0);
   const alertUrgentMnt = state.maintenance.filter(m=>m.priority==='عاجلة' && m.status!=='مكتملة');
   const dashNoAtt = state.transactions.filter(t=>t.type==='expense' && !t.hasAttachment && !isBankFeeTx(t));
