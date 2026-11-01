@@ -2078,7 +2078,8 @@ function renderPayments(main){
   topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو وشقة، مع إمكانية تعديل مبلغ أي شهر لأي شقة (مثال: فرق شهر أغسطس).',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printPaymentsReport()">🖨 طباعة كشف الشهر</button>'+
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="openDefaultersPrintOptions()">🖨 طباعة كشف المتأخرين</button>'+
-    '<button class="btn-ghost btn-sm" onclick="openBulkMoveModal()">⏭ ترحيل دفعات شهر</button>');
+    '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="openBulkMoveModal()">⏭ ترحيل دفعات شهر</button>'+
+    '<button class="btn-ghost btn-sm" onclick="openWaiveMonthModal()">🚫 شهر بلا رسوم</button>');
 
   const filters = document.createElement('div');
   filters.className='filters-row';
@@ -2236,6 +2237,34 @@ function _bulkMovePlan(src,tgt){
     if(t && t.paid) conflict.push(u); else move.push(u);
   });
   return {move, conflict};
+}
+/* شهر بلا رسوم: يجعل مبلغ الشهر 0 للشقق غير المسددة فيه، فلا يُحسب عليها متأخرًا ولا تظهر عليها العلامة الحمراء.
+   للشهر الذي لم تُحصَّل فيه رسوم أصلًا (مثل شهر قبل أن تبدأ الإدارة الحالية التحصيل). لا يمس المدفوعات ولا الأرصدة. */
+function openWaiveMonthModal(){
+  const months = monthsBetweenInclusive(firstBillingMonthKey(), lastCompletedMonthKey());
+  const def = months.includes('2026-08') ? '2026-08' : (months[0]||currentMonthKey());
+  showModal(`<h3>🚫 شهر بلا رسوم</h3>
+    <p style="font-size:12.5px;color:var(--text-dim);line-height:1.8;">اختر شهرًا لم تُحصَّل رسومه أصلًا، فيصير مبلغه ٠ لكل شقة غير مسددة فيه، ولا يُحسب عليها متأخرًا. من دفع فيه يبقى دفعه كما هو. ويمكنك لاحقًا إعادة المبلغ لشقة واحدة من «تعديل المبلغ» (مثل من عليه الشهر فعلًا).</p>
+    <div class="field"><label>الشهر</label><select id="f-wv-m" onchange="updateWaivePreview()">${months.map(m=>`<option value="${m}" ${m===def?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></div>
+    <div id="wv-preview" style="font-size:13px;line-height:1.8;margin:8px 0;"></div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeModal()">إلغاء</button><button class="btn" onclick="runWaiveMonth()">تطبيق</button></div>`);
+  updateWaivePreview();
+}
+function _waivePlan(mk){ return state.units.filter(u=>{ const r=state.payments[u.id+'|'+mk]; return !(r&&r.paid) && (!r || Number(r.amount)!==0); }); }
+function updateWaivePreview(){
+  const mk=(document.getElementById('f-wv-m')||{}).value; const el=document.getElementById('wv-preview'); if(!mk||!el) return;
+  const p=_waivePlan(mk); el.innerHTML='سيصير مبلغ '+monthLabel(mk)+' = ٠ لعدد <b>'+p.length+'</b> شقة غير مسددة.';
+}
+async function runWaiveMonth(){
+  const mk=document.getElementById('f-wv-m').value; if(!mk) return;
+  if(!assertMonthOpen(mk,'تعديل رسوم')) return;
+  const p=_waivePlan(mk); if(!p.length){ alert('لا توجد شقق للتعديل'); return; }
+  if(!confirm('سيصير '+monthLabel(mk)+' بلا رسوم لـ'+p.length+' شقة غير مسددة. تكمل؟')) return;
+  p.forEach(u=>{ state.payments[u.id+'|'+mk]={paid:false, amount:0}; });
+  state.paymentMoveLog=(state.paymentMoveLog||[]).concat([{waive:true,month:mk,count:p.length,at:new Date().toISOString()}]);
+  state.units.forEach(u=>syncUnitFinancials(u));
+  await saveState(); closeModal(); render();
+  alert('تم — '+monthLabel(mk)+' بلا رسوم لـ'+p.length+' شقة.');
 }
 function openBulkMoveModal(){
   const months = [...new Set(Object.keys(state.payments||{}).filter(k=>state.payments[k]&&state.payments[k].paid).map(k=>k.split('|')[1]))].sort();
