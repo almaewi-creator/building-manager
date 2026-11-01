@@ -1079,7 +1079,10 @@ function placeBalances(){
     if(r.place==='bank') bank += amt;
     else if(r.place==='cash') cash += amt;
     else if(r.place==='custody') custody += amt;
-    else if(from && mk >= from) bank += amt; else custody += amt;
+    else { /* المكان بحسب شهر الإيداع الفعلي إن وُجد (دفعة رُحّلت من شهر لآخر تبقى حيث استُلمت)، وإلا شهر الاستحقاق */
+      const em = (r.depositDate && /^\d{4}-\d{2}/.test(r.depositDate)) ? r.depositDate.slice(0,7) : mk;
+      if(from && em >= from) bank += amt; else custody += amt;
+    }
   });
   (state.transactions||[]).forEach(t=>{
     const v = (t.type==='income'?1:-1) * (Number(t.amount)||0);
@@ -2323,6 +2326,7 @@ async function movePaymentMonth(unitId){
   const msg = (a.paid && !b.paid) ? 'نقل سداد '+monthLabel(from)+' إلى '+monthLabel(to)+'؟' : 'تبديل حالة السداد بين '+monthLabel(from)+' و'+monthLabel(to)+'؟';
   if(!confirm(msg)) return;
   const [na, nb] = _swapPayState(a, b, fee);
+  [[na,from],[nb,to]].forEach(([n,m])=>{ if(n.paid && !n.depositDate){ const orig=(m===from?to:from); n.depositDate=_monthEndISO(orig); } }); // تبقى الدفعة في المكان الذي استُلمت فيه
   state.payments[ka] = na; state.payments[kb] = nb;
   state.paymentMoveLog = state.paymentMoveLog || [];
   state.paymentMoveLog.push({unit:u.number, from, to, at:new Date().toISOString()});
