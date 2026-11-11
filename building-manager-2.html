@@ -653,6 +653,10 @@ function migrateState(){
   if(state.billingStartMonth===undefined) state.billingStartMonth = '';
   if(state.billingModeIgnoreStart===undefined) state.billingModeIgnoreStart = false;
   if(state.openingBalance===undefined) state.openingBalance = 0;
+  /* أمانة في حساب البنك: مبلغ موجود فعليًا في البنك لكنه ليس من أموال الجمعية (مثل رصيد الحساب عند الاستلام). لا يدخل الإيرادات ولا الرصيد، ويُضاف فقط عند مطابقة رصيد البنك */
+  if(state.trustFunds===undefined){
+    state.trustFunds = (!Number(state.openingBalance)) ? {amount:2818.36, note:'رصيد حساب العمارة عند الاستلام (سبتمبر 2026) — أمانة، لا تدخل في حسابات الجمعية'} : {amount:0, note:''};
+  }
   if(!state.nextVoucherNo) state.nextVoucherNo = 1;
   if(!state.voucherDefaults) state.voucherDefaults = {accountant:'', manager:''};
   if(!state.vouchers) state.vouchers = [];
@@ -1054,6 +1058,7 @@ function managerSalaryText(){
   const months = monthsBetweenInclusive(m.startMonth, lastCompletedMonthKey()).length;
   return `مستحقات المدير غير المصروفة: ${fmt(amt)} ر.س شهريًا منذ ${monthLabel(m.startMonth)} — المتراكم حتى نهاية ${monthLabel(lastCompletedMonthKey())}: ${fmt(months*amt)} ر.س (مؤجلة، التزام على الجمعية غير مصروف ولا يدخل في المصروفات أو الرصيد).`;
 }
+function trustAmount(){ return Number(state.trustFunds && state.trustFunds.amount)||0; }
 function setBankActual(){
   const cur = state.bankActual && state.bankActual.amount!==undefined ? state.bankActual.amount : '';
   const v = prompt('اكتب رصيد حساب العمارة كما يظهر في تطبيق بنك الرياض نفسه (وليس رقم هذا التطبيق):', cur);
@@ -1318,7 +1323,7 @@ function renderDashFocus(main){
   const noVch = (state.transactions||[]).filter(t=>t.type==='expense' && !isBankFeeTx(t) && !vch.some(v=>v.txId===t.id) && !/سند صرف رقم/.test(t.note||''));
   const pb = placeBalances();
   const ba = state.bankActual && state.bankActual.amount!==undefined && state.bankActual.amount!=='' ? state.bankActual : null;
-  const bdiff = ba ? Number(ba.amount) - pb.bank : null;
+  const bdiff = ba ? Number(ba.amount) - (pb.bank + trustAmount()) : null;
   const ageDays = ba ? Math.round((Date.now()-new Date(ba.date+'T00:00:00').getTime())/86400000) : null;
   const bankOk = ba && Math.abs(bdiff)<0.005 && ageDays<=7;
   const tasks = [
@@ -1476,7 +1481,7 @@ function renderDashboard(main){
   main.appendChild(stats2);
   const financeNote = document.createElement('div');
   financeNote.style.cssText = 'font-size:11.5px;color:var(--text-dim);margin:8px 0 -4px;padding:0 2px;';
-  financeNote.innerHTML = `الرصيد الحالي = الرصيد الافتتاحي ${fmt(state.openingBalance||0)} (${esc(openingBalanceText())}) + (اشتراكات الشقق المحصّلة ${fmt(collected)} + إيجار الغرف والحركات الأخرى ${fmt(income)}) − المصروفات ${fmt(expense)}${state.openingBalance?'':' — بدأ الحساب من صفر ريال'}`;
+  financeNote.innerHTML = (trustAmount()>0?`<div style="color:#7a5a12;margin-bottom:4px;">🔒 في حساب البنك أمانة ${fmt(trustAmount())} ر.س ليست من أموال الجمعية، ولا تدخل في الإيرادات أو الرصيد أدناه.</div>`:'') + `الرصيد الحالي = الرصيد الافتتاحي ${fmt(state.openingBalance||0)} (${esc(openingBalanceText())}) + (اشتراكات الشقق المحصّلة ${fmt(collected)} + إيجار الغرف والحركات الأخرى ${fmt(income)}) − المصروفات ${fmt(expense)}${state.openingBalance?'':' — بدأ الحساب من صفر ريال'}`;
   main.appendChild(financeNote);
   const pb = placeBalances();
   const placeBox = document.createElement('div');
@@ -1484,9 +1489,10 @@ function renderDashboard(main){
   placeBox.style.cssText = 'padding:12px 16px;margin-top:12px;';
   const prow = (label,val,extra)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eef0f2;font-size:13.5px;"><span>${label}${extra?`<div style="font-size:11px;color:#c0392b;">${extra}</div>`:''}</span><b style="color:${val<0?'#c0392b':'#1f2d3d'};">${fmt(val)} ر.س</b></div>`;
   placeBox.innerHTML = `<div style="font-weight:800;font-size:13.5px;margin-bottom:2px;">أين المبلغ الآن؟</div>
-    ${prow('🏦 حساب العمارة (البنك)',pb.bank,pb.bank<0?'⚠ رصيد البنك المسجَّل سالب — غالبًا دفعات واردة لم تُسجَّل أو مصروف عُلِّم بنكًا بالخطأ':'')}
+    ${prow('🏦 حساب العمارة (البنك)',pb.bank,pb.bank<0?(trustAmount()>0 && pb.bank+trustAmount()>=0 ? '⚠ ما صُرف من البنك زاد عن إيرادات الجمعية بمقدار '+fmt(-pb.bank)+' ر.س، فسُدّ فعليًا من الأمانة. تأكد أن كل دفعة واردة مسجّلة' : '⚠ رصيد البنك المسجَّل سالب — غالبًا دفعات واردة لم تُسجَّل أو مصروف عُلِّم بنكًا بالخطأ'):'')}
+    ${trustAmount()>0?`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eef0f2;font-size:13px;color:#7a5a12;"><span>🔒 أمانة في حساب البنك (ليست من أموال الجمعية)<div style="font-size:11px;">${esc((state.trustFunds&&state.trustFunds.note)||'')}</div></span><b>${fmt(trustAmount())} ر.س</b></div><div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eef0f2;font-size:13px;"><span>إجمالي ما يجب أن يظهر في كشف البنك</span><b>${fmt(pb.bank+trustAmount())} ر.س</b></div>`:''}
     ${(()=>{const ba=state.bankActual; if(!ba||ba.amount===undefined||ba.amount==='') return `<div style="padding:6px 0;border-bottom:1px solid #eef0f2;font-size:12.5px;"><button class="btn-ghost btn-sm" onclick="setBankActual()">🔗 طابق مع رصيد البنك الفعلي</button></div>`;
-      const diff = Number(ba.amount) - pb.bank; const okm = Math.abs(diff)<0.005;
+      const diff = Number(ba.amount) - (pb.bank + trustAmount()); const okm = Math.abs(diff)<0.005;
       let ds=''; try{ ds=new Date(ba.date+'T00:00:00').toLocaleDateString('ar-SA'); }catch(e){}
       return `<div style="padding:6px 0;border-bottom:1px solid #eef0f2;font-size:12.5px;">رصيد البنك الفعلي حسب كشفك${ds?' ('+esc(ds)+')':''}: <b>${fmt(ba.amount)} ر.س</b> — ${okm?'<span style="color:#1f7a4a;font-weight:700;">✅ مطابق</span>':'<span style="color:#c0392b;font-weight:700;">⚠ الفرق '+fmt(diff)+' ر.س (حركة ناقصة أو غير مطابقة)</span>'} <button class="btn-ghost btn-sm" onclick="setBankActual()">تحديث</button></div>`;})()}
     ${prow('👤 عهدة المدير',pb.custody,pb.custody<0?'سالب = صُرف من مال المدير الشخصي، وهو مستحق له':'')}
@@ -2722,6 +2728,11 @@ function renderSettings(main){
       <input id="f-set-openbal" type="number" step="0.01" value="${state.openingBalance||0}">
     </div>
     <div class="field">
+      <label>أمانة في حساب البنك (ر.س) — ليست من أموال الجمعية</label>
+      <input id="f-set-trust" type="number" step="0.01" value="${trustAmount()}">
+      <input id="f-set-trustnote" type="text" style="margin-top:6px;" value="${esc((state.trustFunds&&state.trustFunds.note)||'')}" placeholder="مثال: رصيد الحساب عند الاستلام — أمانة">
+    </div>
+    <div class="field">
       <label>شهر الرصيد الافتتاحي (شهر الاستلام)</label>
       <input id="f-set-openbaldate" type="month" value="${state.openingBalanceDate||''}">
     </div>
@@ -2923,6 +2934,7 @@ async function saveSettings(){
   if(billStartInput) state.billingStartMonth = billStartInput.value || '';
   if(openBalInput) state.openingBalance = Number(openBalInput.value)||0;
   const obd = document.getElementById('f-set-openbaldate'); if(obd) state.openingBalanceDate = obd.value || '';
+  const _tr = document.getElementById('f-set-trust'); if(_tr) state.trustFunds = {amount:Number(_tr.value)||0, note:((document.getElementById('f-set-trustnote')||{}).value||'').trim()};
   const sal = document.getElementById('f-set-salary');
   if(sal) state.managerSalary = {amount:Number(sal.value)||0, startMonth:(document.getElementById('f-set-salarystart')||{}).value||'', status:(document.getElementById('f-set-salarystatus')||{}).value||'deferred'};
   const bkf = document.getElementById('f-set-bankfrom'); if(bkf) state.bankActiveFrom = bkf.value || '';
@@ -3234,9 +3246,10 @@ function auditFinance(){
     issues.push(`رصيد حساب العمارة المسجَّل سالب (${fmt(pbk.bank)}). مصروفات معلَّمة "حساب العمارة" (${bx.length}): `+bx.slice(0,10).map(t=>`${t.date} ${fmt(t.amount)} ر.س`).join(' ، ')+(bx.length>10?' …':'')+' — إن كان بينها ما دُفع من حسابك الشخصي فغيّره إلى "عهدة المدير"، وإن كانت دفعات دخلت البنك ولم تُسجَّل فسجّلها');
   }
   if(state.bankActual && state.bankActual.amount!==undefined && state.bankActual.amount!==''){
-    const d = Number(state.bankActual.amount) - pbk.bank;
-    if(Math.abs(d)>=0.005) issues.push(`رصيد البنك الفعلي (${fmt(state.bankActual.amount)}) يختلف عن المسجَّل في النظام (${fmt(pbk.bank)}) بفرق ${fmt(d)} ر.س`);
-    else ok.push('رصيد البنك مطابق لكشف البنك ('+fmt(pbk.bank)+' ر.س)');
+    const _exp = pbk.bank + trustAmount();
+    const d = Number(state.bankActual.amount) - _exp;
+    if(Math.abs(d)>=0.005) issues.push(`رصيد البنك الفعلي (${fmt(state.bankActual.amount)}) يختلف عن المسجَّل في النظام (${fmt(_exp)}${trustAmount()?' = '+fmt(pbk.bank)+' للجمعية + '+fmt(trustAmount())+' أمانة':''}) بفرق ${fmt(d)} ر.س`);
+    else ok.push('رصيد البنك مطابق لكشف البنك ('+fmt(_exp)+' ر.س)');
   }
   // مصروف بنفس مبلغ تحويل بين الأماكن: غالبًا تكرار (التحويل ينقل المال فقط، والصرف منه مسجَّل أصلًا)
   (state.transfers||[]).forEach(tr=>{
