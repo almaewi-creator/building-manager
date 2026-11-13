@@ -1865,6 +1865,18 @@ function buildOwnerStatementHTML(owner){
 function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+/* ألوان الطباعة القابلة للتغيير من الإعدادات (state.printColors) */
+const PRINT_COLORS_DEFAULT = { total:'#c0392b', paid:'#14683a', unpaid:'#c0392b' };
+function printColors(){
+  const c = Object.assign({}, PRINT_COLORS_DEFAULT, state.printColors||{});
+  Object.keys(PRINT_COLORS_DEFAULT).forEach(k=>{ if(!/^#[0-9a-fA-F]{6}$/.test(c[k]||'')) c[k]=PRINT_COLORS_DEFAULT[k]; });
+  return c;
+}
+function _hexA(h,a){ const n=parseInt(h.slice(1),16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; }
+function printColorsCSS(){
+  const c = printColors();
+  return `:root{ --c-total:${c.total}; --c-total-bg:${_hexA(c.total,.10)}; --c-total-bd:${_hexA(c.total,.45)}; --c-paid:${c.paid}; --c-paid-bg:${_hexA(c.paid,.14)}; --c-unpaid:${c.unpaid}; --c-unpaid-bg:${_hexA(c.unpaid,.10)}; }`;
+}
 const STMT_STYLE = `
   ${PRINT_WATERMARK_CSS}
   *{box-sizing:border-box;}
@@ -1902,13 +1914,16 @@ const STMT_STYLE = `
   .stmt-footer{ font-size:13px !important; }
   table.stmt-table td:first-child{ white-space:nowrap; unicode-bidi:isolate; }
   table.stmt-table td:last-child, table.stmt-table th:last-child{ white-space:nowrap; }
-  .tot-red{ color:#c0392b !important; } .tot-green{ color:#1f7a4a !important; }
+  .tot-red{ color:var(--c-total,#c0392b) !important; } .tot-green{ color:var(--c-paid,#1f7a4a) !important; }
   .stmt-totals{ display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
-  .stmt-totals .tb{ flex:1 1 180px; text-align:center; border:2px solid #e8b4af; background:#fdeceb; border-radius:10px; padding:8px 10px; }
-  .stmt-totals .tb.ok{ border-color:#b7dfc6; background:#e9f7ef; }
+  .stmt-totals .tb{ flex:1 1 180px; text-align:center; border:2px solid var(--c-total-bd,#e8b4af); background:var(--c-total-bg,#fdeceb); border-radius:10px; padding:8px 10px; }
+  .stmt-totals .tb.ok{ border-color:var(--c-paid,#b7dfc6); background:var(--c-paid-bg,#e9f7ef); }
   .stmt-totals .tb .l{ font-size:17px !important; color:#4a4f57; }
   .stmt-totals .tb .v{ font-size:30px !important; margin-top:2px; }
-  tr.sum-row td{ background:#f6f0e3; font-size:19px !important; border-top:2px solid #16181d !important; }
+  tr.sum-row td{ background:#f6f0e3; font-size:20px !important; border-top:2px solid #16181d !important; color:var(--c-total,#c0392b) !important; }
+  tr.sum-row td.tot-green{ color:var(--c-paid,#1f7a4a) !important; }
+  .stmt-totals .tb .l{ color:var(--c-total,#c0392b) !important; }
+  .stmt-totals .tb.ok .l{ color:var(--c-paid,#1f7a4a) !important; }
 `;
 function printOwnerStatement(id){
   const owner = state.owners.find(o=>o.id===id);
@@ -1918,7 +1933,7 @@ function printOwnerStatement(id){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>كشف حساب - ${esc(owner.name)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}${printColorsCSS()}</style></head>
     <body>${printWatermarkHTML()}${buildOwnerStatementHTML(owner)}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
@@ -1932,7 +1947,7 @@ function printAllStatements(){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>كشوف حسابات الملاك - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}${printColorsCSS()}</style></head>
     <body>${printWatermarkHTML()}${pages}
     <script>window.onload=()=>{setTimeout(()=>window.print(),400);}<\/script>
     </body></html>`);
@@ -2510,7 +2525,7 @@ function printPaymentsReport(){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>كشف الدفعات - ${esc(monthLabel(paymentsMonth))}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}${printColorsCSS()}</style></head>
     <body>${printWatermarkHTML()}${buildPaymentsReportHTML()}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
@@ -2568,8 +2583,8 @@ function buildSubsMatrixHTML(){
       <tfoot><tr><td colspan="2">الإجمالي</td>${footCells}<td>—</td><td>${fmt(totPaid)}</td><td>${totOwed? fmt(totOwed)+'-':'0'}</td></tr></tfoot>
     </table></div>
     <table class="stmt-info" style="margin-top:10px"><tr>
-      <td><b>إجمالي المحصّل:</b> ${fmt(totPaid)} ر.س</td>
-      <td><b>إجمالي المتأخرات على الأعضاء:</b> ${fmt(totOwed)} ر.س</td>
+      <td><b class="tot-red">إجمالي المحصّل:</b> <span class="tot-red">${fmt(totPaid)} ر.س</span></td>
+      <td><b class="tot-red">إجمالي المتأخرات على الأعضاء:</b> <span class="tot-red">${fmt(totOwed)} ر.س</span></td>
       <td><b>عدد الشقق:</b> ${units.length}</td>
     </tr></table>
     <div class="stmt-tail-block">
@@ -2585,7 +2600,7 @@ function printSubsMatrix(){
     <title>قائمة سداد الاشتراكات - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <style>@font-face{ font-family:'KhattSultani'; src:url(${SULTANI_URI}) format('truetype'); font-weight:400 900; }
-    ${STMT_STYLE}
+    ${STMT_STYLE}${printColorsCSS()}
       .stmt-page, .stmt-page *{ font-family:'KhattSultani','Tajawal',Tahoma,sans-serif !important; font-weight:700 !important; }
       @page{ size: A4 landscape; margin: 8mm; }
       .stmt-page-wide{ max-width:100%; }
@@ -2594,14 +2609,14 @@ function printSubsMatrix(){
       .stmt-title{ font-size:20px !important; } .stmt-building{ font-size:24px !important; }
       .mx-table td.mx-name{ text-align:right; }
       .mx-table td.mx-n{ font-weight:800; }
-      .mx-p{ background:#dff3e4; color:#14683a; font-weight:700; }
-      .mx-u{ background:#fdeceb; color:#c0392b; }
+      .mx-p{ background:var(--c-paid-bg,#dff3e4); color:var(--c-paid,#14683a); font-weight:700; }
+      .mx-u{ background:var(--c-unpaid-bg,#fdeceb); color:var(--c-unpaid,#c0392b); }
       .mx-z{ color:#aab0b8; }
       .stmt-info{ margin-bottom:4px !important; } .stmt-page{ padding-bottom:0 !important; margin-bottom:0 !important; min-height:0 !important; } body{ margin:0 !important; } .stmt-stamp{ max-height:40px; width:auto; } .stmt-stamp-wrap{ margin:2px 0 !important; } .stmt-footer{ font-size:12px; margin-top:2px; line-height:1.5; }
       .stmt-info td{ font-size:19px; }
       .stmt-header{ margin-bottom:6px; padding-bottom:6px; }
-      .mx-neg{ color:#c0392b; } .mx-pos{ color:#14683a; }
-      .mx-table tfoot td{ background:#f6f0e3; font-weight:800; }
+      .mx-neg{ color:var(--c-unpaid,#c0392b); } .mx-pos{ color:var(--c-paid,#14683a); }
+      .mx-table tfoot td{ background:#f6f0e3; font-weight:800; color:var(--c-total,#c0392b) !important; font-size:20px !important; }
       .mx-table tfoot{ display:table-row-group; }
       .mx-table thead{ display:table-header-group; }
       .mx-table tr{ page-break-inside:avoid; break-inside:avoid; }
@@ -2682,7 +2697,7 @@ function printDefaultersReport(opts){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>كشف المتأخرين - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}
+    <style>${STMT_STYLE}${printColorsCSS()}
       /* Explicit A4 landscape (instead of a bare "landscape" with no size,
          which left the paper dimensions to the browser's guess) so a long
          list of defaulters flows cleanly across a real second A4 page
@@ -2877,6 +2892,16 @@ function renderSettings(main){
       المبلغ اللي كان موجود في حساب العمارة قبل ما تبدأ تسجّل الحركات في النظام. لو الحساب بدأ من صفر ريال، خله 0.
       يُستخدم لحساب <b>"رصيد الحساب الحالي"</b> في لوحة التحكم.
     </p>
+    <div class="field">
+      <label>ألوان الكشوف المطبوعة</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">الإجماليات والعجز <input id="f-pc-total" type="color" value="${printColors().total}" style="width:44px;height:30px;padding:0;border:none;background:none;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">المسدد <input id="f-pc-paid" type="color" value="${printColors().paid}" style="width:44px;height:30px;padding:0;border:none;background:none;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">غير المسدد <input id="f-pc-unpaid" type="color" value="${printColors().unpaid}" style="width:44px;height:30px;padding:0;border:none;background:none;"></label>
+        <button class="btn-ghost btn-sm" type="button" onclick="resetPrintColors()">استرجاع الألوان الأصلية</button>
+      </div>
+    </div>
+    <p style="font-size:11.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">تُطبَّق على كل الكشوف المطبوعة (قائمة سداد الاشتراكات، تقرير المصروفات، وغيرها). اضغط «حفظ» بعد التغيير.</p>
     <div class="modal-actions" style="margin-top:2px;max-width:220px;margin-bottom:16px;">
       <button class="btn" onclick="saveSettings()">حفظ</button>
     </div>
@@ -3055,11 +3080,18 @@ async function saveSettings(){
   const bkf = document.getElementById('f-set-bankfrom'); if(bkf) state.bankActiveFrom = bkf.value || '';
   const mgs = document.getElementById('f-set-mgmtstart'); if(mgs) state.managementStartMonth = mgs.value || '';
   const obn = document.getElementById('f-set-openbalnote'); if(obn) state.openingBalanceNote = obn.value.trim();
+  const _pt=document.getElementById('f-pc-total'), _pp=document.getElementById('f-pc-paid'), _pu=document.getElementById('f-pc-unpaid');
+  if(_pt && _pp && _pu) state.printColors = { total:_pt.value, paid:_pp.value, unpaid:_pu.value };
   await saveState();
   render();
   alert('تم حفظ الإعدادات ✅');
 }
 
+async function resetPrintColors(){
+  state.printColors = null;
+  await saveState();
+  render();
+}
 let roomPaymentsMonth = dashDefaultMonth();
 function renderDriverRooms(main){
   topbar(main, state.buildingName, 'غرف السواقين', 'إيجار غرف السواقين الخمسة — يُدار الآن بنفس طريقة الدفعات الشهرية للشقق: تحدد الشهر وتؤشر كل غرفة كمدفوعة أو غير مدفوعة.',
@@ -3301,7 +3333,7 @@ function printDriverRoomsReport(){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>كشف غرف السواقين - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}${printColorsCSS()}</style></head>
     <body>${printWatermarkHTML()}${buildDriverRoomsReportHTML()}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
@@ -3565,7 +3597,7 @@ function buildFinanceReportHTML(){
   const sumRows = (financeFilter!=='income' && sumExp? `<tr class="sum-row"><td colspan="5">إجمالي المصروفات</td><td class="tot-red">${fmt(sumExp)} ر.س</td></tr>` : '') + (financeFilter!=='expense' && sumInc? `<tr class="sum-row"><td colspan="5">إجمالي الإيرادات</td><td class="tot-green">${fmt(sumInc)} ر.س</td></tr>` : '');
   const rows = [...scoped].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
       <td>${esc(t.date)}</td>
-      <td style="font-weight:700;color:${t.type==='income'?'#1f9d55':'#c0392b'}">${t.type==='income'?'إيراد':'مصروف'}</td>
+      <td style="font-weight:700;color:${t.type==='income'?'var(--c-paid,#1f9d55)':'var(--c-unpaid,#c0392b)'}">${t.type==='income'?'إيراد':'مصروف'}</td>
       <td>${esc(t.category)}</td>
       <td>${esc(t.method||'—')}</td>
       <td>${esc(t.note||'—')}</td>
@@ -3612,7 +3644,7 @@ function printFinanceReport(){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>التقرير المالي - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}${printColorsCSS()}</style></head>
     <body>${printWatermarkHTML()}${buildFinanceReportHTML()}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
@@ -4713,7 +4745,7 @@ function printMntItem(id){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>طلب صيانة - ${esc(m.title)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}${printColorsCSS()}</style></head>
     <body>${printWatermarkHTML()}${buildMntReportHTML([m], 'طلب صيانة')}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
     </body></html>`);
@@ -4728,7 +4760,7 @@ function printMaintenanceReport(){
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
     <title>طلبات الصيانة - ${esc(state.buildingName)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>${STMT_STYLE}</style></head>
+    <style>${STMT_STYLE}${printColorsCSS()}</style></head>
     <body>${printWatermarkHTML()}${buildMntReportHTML(list, 'طلب صيانة')}
     <script>window.onload=()=>{setTimeout(()=>window.print(),400);}<\/script>
     </body></html>`);
