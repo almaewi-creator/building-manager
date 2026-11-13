@@ -2502,7 +2502,7 @@ function printPaymentsReport(){
 /* قائمة سداد الاشتراكات: كل الشقق × كل الأشهر (من بداية التحصيل حتى الشهر الحالي) بنفس فكرة قائمة الإدارة السابقة.
    الخلية الخضراء = المبلغ المسدد، والخلية الحمراء الفاتحة = غير مسدد. */
 function buildSubsMatrixHTML(){
-  const start = firstBillingMonthKey();
+  const start = incomeStartKey(); // تبدأ القائمة من أول شهر إدارة (سبتمبر)، وما قبله يدخل في «رصيد سابق»
   const to = currentMonthKey();
   const months = monthsBetweenInclusive(start, to);
   const today = new Date().toLocaleDateString('ar-SA-u-ca-gregory');
@@ -2520,7 +2520,7 @@ function buildSubsMatrixHTML(){
       if(paid){ paidSum += amount; colPaid[i] += amount; return `<td class="mx-p">${fmt(amount)}</td>`; }
       return `<td class="mx-u">${fmt(amount)}</td>`;
     }).join('');
-    const prev = Number(u.arrearsPrevious||0);
+    const prev = computeUnitPriorArrears(u, start);
     const bal = prev + computeUnitNetForRange(u, start, to);
     totPaid += paidSum; totPrev += prev;
     if(bal<0) totOwed += -bal; else totCredit += bal;
@@ -2545,7 +2545,7 @@ function buildSubsMatrixHTML(){
       <div class="stmt-date">تاريخ الطباعة: ${today}</div>
     </div>
     <div class="stmt-table-scroll"><table class="stmt-table mx-table">
-      <thead><tr><th>الشقة</th><th>العضو</th>${months.map(mk=>`<th>${monthLabel(mk)}</th>`).join('')}<th>رصيد سابق</th><th>إجمالي المسدد</th><th>الرصيد</th></tr></thead>
+      <thead><tr><th>الشقة</th><th>العضو</th>${months.map(mk=>`<th>${monthLabel(mk)}</th>`).join('')}<th>رصيد سابق*</th><th>إجمالي المسدد</th><th>الرصيد</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><td colspan="2">الإجمالي</td>${footCells}<td>—</td><td>${fmt(totPaid)}</td><td>${totOwed? fmt(totOwed)+'-':'0'}</td></tr></tfoot>
     </table></div>
@@ -2556,7 +2556,7 @@ function buildSubsMatrixHTML(){
     </tr></table>
     <div class="stmt-tail-block">
       <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
-      <div class="stmt-footer">الخلية الخضراء: المبلغ المسدد لذلك الشهر. الخلية الحمراء الفاتحة: غير مسدد. عمود "الرصيد": سالب (-) يعني متأخرات على الشقة، وموجب (+) يعني مبلغًا مقدّمًا. صادر آليًا من نظام إدارة العمارة.</div>
+      <div class="stmt-footer">الخلية الخضراء: المبلغ المسدد لذلك الشهر. الخلية الحمراء الفاتحة: غير مسدد. *رصيد سابق: ما كان على الشقة قبل ${monthLabel(start)}. عمود "الرصيد": سالب (-) يعني متأخرات على الشقة، وموجب (+) يعني مبلغًا مقدّمًا. صادر آليًا من نظام إدارة العمارة.</div>
     </div>
   </div>`;
 }
