@@ -2569,16 +2569,19 @@ function printSubsMatrix(){
     <style>${STMT_STYLE}
       @page{ size: A4 landscape; margin: 8mm; }
       .stmt-page-wide{ max-width:100%; }
-      .mx-table th,.mx-table td{ padding:1.5px 4px; font-size:9.5px; text-align:center; white-space:nowrap; }
-      .mx-table td.mx-name{ text-align:right; max-width:150px; overflow:hidden; text-overflow:ellipsis; }
+      .mx-table th,.mx-table td{ padding:5px 8px; font-size:13.5px; text-align:center; white-space:nowrap; }
+      .mx-table th{ font-size:13px; }
+      .mx-table td.mx-name{ text-align:right; }
       .mx-table td.mx-n{ font-weight:800; }
       .mx-p{ background:#dff3e4; color:#14683a; font-weight:700; }
       .mx-u{ background:#fdeceb; color:#c0392b; }
       .mx-z{ color:#aab0b8; }
-      .stmt-stamp{ max-height:62px; width:auto; } .stmt-footer{ font-size:9px; margin-top:2px; }
+      .stmt-stamp{ max-height:80px; width:auto; } .stmt-footer{ font-size:11px; margin-top:4px; }
+      .stmt-info td{ font-size:14px; }
       .stmt-header{ margin-bottom:6px; padding-bottom:6px; }
       .mx-neg{ color:#c0392b; } .mx-pos{ color:#14683a; }
       .mx-table tfoot td{ background:#f6f0e3; font-weight:800; }
+      .mx-table tfoot{ display:table-row-group; }
       .mx-table thead{ display:table-header-group; }
       .mx-table tr{ page-break-inside:avoid; break-inside:avoid; }
       .stmt-tail-block{ page-break-inside:avoid; break-inside:avoid; }
