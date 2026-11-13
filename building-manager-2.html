@@ -1892,6 +1892,23 @@ const STMT_STYLE = `
   .stmt-stamp{width:90px;height:auto;opacity:.92;}
   @media print{ .stmt-stamp-wrap{page-break-inside:avoid;} }
   @media print{ .stmt-page{page-break-after:always;} }
+  /* خط سلطاني عريض لكل الكشوف المطبوعة + إبراز الإجماليات والعجز والمتبقي */
+  @font-face{ font-family:'KhattSultani'; src:url(${SULTANI_URI}) format('truetype'); font-weight:100 900; }
+  body, .stmt-page, .stmt-page *{ font-family:'KhattSultani','Tajawal',Tahoma,sans-serif !important; font-weight:700 !important; }
+  .stmt-building{ font-size:26px !important; } .stmt-title{ font-size:19px !important; } .stmt-date{ font-size:14px !important; }
+  table.stmt-info{ font-size:18px !important; } .stmt-section-title{ font-size:19px !important; }
+  table.stmt-table{ font-size:16px !important; line-height:1.3; }
+  table.stmt-table th{ font-size:16px !important; } table.stmt-table th, table.stmt-table td{ padding:6px 8px !important; }
+  .stmt-footer{ font-size:13px !important; }
+  table.stmt-table td:first-child{ white-space:nowrap; unicode-bidi:isolate; }
+  table.stmt-table td:last-child, table.stmt-table th:last-child{ white-space:nowrap; }
+  .tot-red{ color:#c0392b !important; } .tot-green{ color:#1f7a4a !important; }
+  .stmt-totals{ display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
+  .stmt-totals .tb{ flex:1 1 180px; text-align:center; border:2px solid #e8b4af; background:#fdeceb; border-radius:10px; padding:8px 10px; }
+  .stmt-totals .tb.ok{ border-color:#b7dfc6; background:#e9f7ef; }
+  .stmt-totals .tb .l{ font-size:17px !important; color:#4a4f57; }
+  .stmt-totals .tb .v{ font-size:30px !important; margin-top:2px; }
+  tr.sum-row td{ background:#f6f0e3; font-size:19px !important; border-top:2px solid #16181d !important; }
 `;
 function printOwnerStatement(id){
   const owner = state.owners.find(o=>o.id===id);
@@ -2672,7 +2689,7 @@ function printDefaultersReport(opts){
          instead of being squeezed or breaking at an awkward spot. */
       @page{ size: A4 landscape; margin: 10mm; }
       .stmt-page-wide{ max-width:100%; }
-      .defaulters-detail-table th, .defaulters-detail-table td{ padding:5px 6px; font-size:10.5px; white-space:nowrap; }
+      .defaulters-detail-table th, .defaulters-detail-table td{ padding:4px 5px !important; font-size:13px !important; white-space:nowrap; }
       /* Repeat the column headers on page 2+ and never slice a row (or the
          chart/stamp/footer block) in half across the page break. */
       .defaulters-detail-table thead{ display:table-header-group; }
@@ -3536,6 +3553,16 @@ function buildFinanceReportHTML(){
   const carryNote = (financeMonth && financeCarry) ? `إيرادات ${monthLabel(srcMonth)} تُصرف في ${monthLabel(financeMonth)}` : '';
   const today = new Date().toLocaleDateString('ar-SA');
   const scopeLabel = (financeMonth?monthLabel(financeMonth):'كل الأشهر') + (financeFilter==='all'?'':financeFilter==='income'?' (إيرادات فقط)':' (مصروفات فقط)');
+  const net = income - expense;
+  const closing = financeMonth ? closingBalanceAt(financeMonth) : null;
+  const sumExp = scoped.filter(t=>t.type==='expense').reduce((a,t)=>a+Number(t.amount),0);
+  const sumInc = scoped.filter(t=>t.type==='income').reduce((a,t)=>a+Number(t.amount),0);
+  let finBoxHTML = '<div class="stmt-totals">';
+  if(financeFilter!=='income') finBoxHTML += `<div class="tb"><div class="l">إجمالي المصروفات</div><div class="v tot-red">${fmt(expense)} ر.س</div></div>`;
+  if(financeFilter==='all') finBoxHTML += `<div class="tb ${net<0?'':'ok'}"><div class="l">${net<0?'⚠ العجز':net>0?'الفائض':'الصافي'}</div><div class="v ${net<0?'tot-red':'tot-green'}">${fmt(Math.abs(net))} ر.س</div></div>`;
+  if(closing!==null) finBoxHTML += `<div class="tb ${closing<0?'':'ok'}"><div class="l">المتبقي (رصيد الحساب نهاية الشهر)</div><div class="v ${closing<0?'tot-red':'tot-green'}">${closing<0?'⚠ عجز ':''}${fmt(Math.abs(closing))} ر.س</div></div>`;
+  finBoxHTML += '</div>';
+  const sumRows = (financeFilter!=='income' && sumExp? `<tr class="sum-row"><td colspan="5">إجمالي المصروفات</td><td class="tot-red">${fmt(sumExp)} ر.س</td></tr>` : '') + (financeFilter!=='expense' && sumInc? `<tr class="sum-row"><td colspan="5">إجمالي الإيرادات</td><td class="tot-green">${fmt(sumInc)} ر.س</td></tr>` : '');
   const rows = [...scoped].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
       <td>${esc(t.date)}</td>
       <td style="font-weight:700;color:${t.type==='income'?'#1f9d55':'#c0392b'}">${t.type==='income'?'إيراد':'مصروف'}</td>
@@ -3557,10 +3584,10 @@ function buildFinanceReportHTML(){
     <table class="stmt-info">
       <tr>
         ${financeFilter!=='expense'?`<td><b>إجمالي الإيرادات${srcMonth?' ('+esc(monthLabel(srcMonth))+')':''}:</b> ${fmt(income)} ر.س</td>`:''}
-        ${financeFilter!=='income'?`<td><b>إجمالي المصروفات:</b> ${fmt(expense)} ر.س</td>`:''}
         ${financeFilter==='all'?`<td><b>${(income-expense)<0?'العجز':(income-expense)>0?'الفائض':'الصافي'}:</b> <span style="color:${(income-expense)>=0?'#1f9d55':'#c0392b'}">${(income-expense)<0?'⚠ ':''}${fmt(Math.abs(income-expense))} ر.س</span></td>`:''}
       </tr>
     </table>
+    ${finBoxHTML}
     ${financeFilter!=='expense'?`<table class="stmt-info">
       <tr>
         <td><b>الدفعات الشهرية (الشقق):</b> ${fmt(duesIncome)} ر.س</td>
@@ -3573,7 +3600,7 @@ function buildFinanceReportHTML(){
     <div style="font-size:12px;margin:0 0 10px;color:#555;">الرصيد الافتتاحي للنظام: ${fmt(state.openingBalance||0)} ر.س — ${esc(openingBalanceText())}</div>
     <div class="stmt-table-scroll"><table class="stmt-table">
       <thead><tr><th>التاريخ</th><th>النوع</th><th>الفئة</th><th>طريقة الدفع</th><th>ملاحظة</th><th>المبلغ</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="6">لا توجد حركات</td></tr>'}</tbody>
+      <tbody>${rows || '<tr><td colspan="6">لا توجد حركات</td></tr>'}${rows?sumRows:''}</tbody>
     </table></div>
     <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
     <div class="stmt-footer">هذا التقرير صادر آليًا من نظام إدارة العمارة ولا يحتاج توقيعًا.</div>
