@@ -4121,6 +4121,16 @@ const VCH_PRINT_STYLE = `
   .vch-sign small{display:block;color:#6b6f7a;font-size:8px;margin-top:2px;}
   .vch-stamp-img{width:78px;height:auto;opacity:.95;}
   .vch-footer{margin-top:8px;padding-top:4px;border-top:1px solid #c9ccd4;display:flex;justify-content:space-between;color:#6b6f7a;font-size:8px;}
+  /* خط سلطاني عريض للسندات (غامق وأكبر ليتضح عند الطباعة) */
+  @font-face{ font-family:'KhattSultani'; src:url(${SULTANI_URI}) format('truetype'); font-weight:100 900; }
+  .vch-print-page, .vch-print-page *{ font-family:'KhattSultani','Tajawal',Tahoma,sans-serif !important; font-weight:700 !important; }
+  .vch-brand h1{ font-size:18px; } .vch-brand small{ font-size:10px; }
+  .vch-title h2{ font-size:26px; } .vch-title span{ font-size:9px; }
+  .vch-meta label{ font-size:13px; } .vch-no{ font-size:17px; }
+  .vch-amount b{ font-size:12px; } .vch-amt-val{ font-size:21px; }
+  .vch-f>span{ font-size:15px; } .vch-val{ font-size:16px; } .vch-words{ font-size:16px; }
+  .vch-sign b{ font-size:14px; } .vch-sign-line{ font-size:14px; min-height:20px; } .vch-sign small{ font-size:10px; }
+  .vch-footer{ font-size:10px; }
   @page{size:A4;margin:0;}
 `;
 // Creates or updates the المصروفات transaction linked to a voucher, so every
