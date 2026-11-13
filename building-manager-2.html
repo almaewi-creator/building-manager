@@ -2087,6 +2087,7 @@ function renderPayments(main){
   topbar(main, state.buildingName, 'الدفعات الشهرية', 'متابعة حالة سداد الاشتراك الشهري لكل عضو وشقة، مع إمكانية تعديل مبلغ أي شهر لأي شقة (مثال: فرق شهر أغسطس).',
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printPaymentsReport()">🖨 طباعة كشف الشهر</button>'+
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="openDefaultersPrintOptions()">🖨 طباعة كشف المتأخرين</button>'+
+    '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="printSubsMatrix()">🖨 قائمة سداد الاشتراكات (كل الأشهر)</button>'+
     '<button class="btn-ghost btn-sm" style="margin-left:8px;" onclick="openBulkMoveModal()">⏭ ترحيل دفعات شهر</button>'+
     '<button class="btn-ghost btn-sm" onclick="openWaiveMonthModal()">🚫 شهر بلا رسوم</button>');
 
@@ -2494,6 +2495,96 @@ function printPaymentsReport(){
     <style>${STMT_STYLE}</style></head>
     <body>${printWatermarkHTML()}${buildPaymentsReportHTML()}
     <script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+/* قائمة سداد الاشتراكات: كل الشقق × كل الأشهر (من بداية التحصيل حتى الشهر الحالي) بنفس فكرة قائمة الإدارة السابقة.
+   الخلية الخضراء = المبلغ المسدد، والخلية الحمراء الفاتحة = غير مسدد. */
+function buildSubsMatrixHTML(){
+  const start = firstBillingMonthKey();
+  const to = currentMonthKey();
+  const months = monthsBetweenInclusive(start, to);
+  const today = new Date().toLocaleDateString('ar-SA-u-ca-gregory');
+  const units = [...state.units].sort((a,b)=>String(a.number).localeCompare(String(b.number),'ar',{numeric:true}));
+  let colPaid = months.map(()=>0), colDue = months.map(()=>0);
+  let totPaid = 0, totPrev = 0, totOwed = 0, totCredit = 0;
+  const rows = units.map(u=>{
+    let paidSum = 0;
+    const cells = months.map((mk,i)=>{
+      const rec = state.payments[u.id+'|'+mk];
+      const amount = rec ? Number(rec.amount) : Number(u.monthlyFee||200);
+      const paid = !!(rec && rec.paid);
+      colDue[i] += amount;
+      if(!amount) return `<td class="mx-z">—</td>`;
+      if(paid){ paidSum += amount; colPaid[i] += amount; return `<td class="mx-p">${fmt(amount)}</td>`; }
+      return `<td class="mx-u">${fmt(amount)}</td>`;
+    }).join('');
+    const prev = Number(u.arrearsPrevious||0);
+    const bal = prev + computeUnitNetForRange(u, start, to);
+    totPaid += paidSum; totPrev += prev;
+    if(bal<0) totOwed += -bal; else totCredit += bal;
+    return `<tr>
+      <td class="mx-n">${esc(u.number)}</td>
+      <td class="mx-name">${esc(u.owner||'')}</td>
+      ${cells}
+      <td>${prev? fmt(Math.abs(prev))+(prev<0?'-':'+') : '—'}</td>
+      <td><b>${fmt(paidSum)}</b></td>
+      <td class="${bal<0?'mx-neg':bal>0?'mx-pos':''}"><b>${bal===0?'0':(bal<0?fmt(Math.abs(bal))+'-':fmt(bal)+'+')}</b></td>
+    </tr>`;
+  }).join('');
+  const footCells = months.map((mk,i)=>`<td>${fmt(colPaid[i])}</td>`).join('');
+  return `
+  <div class="stmt-page stmt-page-wide">
+    <div class="stmt-header">
+      <img src="${LOGO_URI}" class="stmt-logo" alt="شعار">
+      <div>
+        <div class="stmt-building">${esc(state.buildingName)}</div>
+        <div class="stmt-title">قائمة سداد اشتراكات الأعضاء — من ${monthLabel(start)} إلى ${monthLabel(to)}</div>
+      </div>
+      <div class="stmt-date">تاريخ الطباعة: ${today}</div>
+    </div>
+    <div class="stmt-table-scroll"><table class="stmt-table mx-table">
+      <thead><tr><th>الشقة</th><th>العضو</th>${months.map(mk=>`<th>${monthLabel(mk)}</th>`).join('')}<th>رصيد سابق</th><th>إجمالي المسدد</th><th>الرصيد</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="2">الإجمالي</td>${footCells}<td>—</td><td>${fmt(totPaid)}</td><td>${totOwed? fmt(totOwed)+'-':'0'}</td></tr></tfoot>
+    </table></div>
+    <table class="stmt-info" style="margin-top:10px"><tr>
+      <td><b>إجمالي المحصّل:</b> ${fmt(totPaid)} ر.س</td>
+      <td><b>إجمالي المتأخرات على الأعضاء:</b> ${fmt(totOwed)} ر.س</td>
+      <td><b>عدد الشقق:</b> ${units.length}</td>
+    </tr></table>
+    <div class="stmt-tail-block">
+      <div class="stmt-stamp-wrap"><img src="${STAMP_URI}" class="stmt-stamp" alt="ختم"></div>
+      <div class="stmt-footer">الخلية الخضراء: المبلغ المسدد لذلك الشهر. الخلية الحمراء الفاتحة: غير مسدد. عمود "الرصيد": سالب (-) يعني متأخرات على الشقة، وموجب (+) يعني مبلغًا مقدّمًا. صادر آليًا من نظام إدارة العمارة.</div>
+    </div>
+  </div>`;
+}
+function printSubsMatrix(){
+  const w = window.open('', '_blank');
+  if(!w){ alert('يرجى السماح بالنوافذ المنبثقة للطباعة'); return; }
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>قائمة سداد الاشتراكات - ${esc(state.buildingName)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>${STMT_STYLE}
+      @page{ size: A4 landscape; margin: 8mm; }
+      .stmt-page-wide{ max-width:100%; }
+      .mx-table th,.mx-table td{ padding:1.5px 4px; font-size:9.5px; text-align:center; white-space:nowrap; }
+      .mx-table td.mx-name{ text-align:right; max-width:150px; overflow:hidden; text-overflow:ellipsis; }
+      .mx-table td.mx-n{ font-weight:800; }
+      .mx-p{ background:#dff3e4; color:#14683a; font-weight:700; }
+      .mx-u{ background:#fdeceb; color:#c0392b; }
+      .mx-z{ color:#aab0b8; }
+      .stmt-stamp{ max-height:62px; width:auto; } .stmt-footer{ font-size:9px; margin-top:2px; }
+      .stmt-header{ margin-bottom:6px; padding-bottom:6px; }
+      .mx-neg{ color:#c0392b; } .mx-pos{ color:#14683a; }
+      .mx-table tfoot td{ background:#f6f0e3; font-weight:800; }
+      .mx-table thead{ display:table-header-group; }
+      .mx-table tr{ page-break-inside:avoid; break-inside:avoid; }
+      .stmt-tail-block{ page-break-inside:avoid; break-inside:avoid; }
+    </style></head>
+    <body>${printWatermarkHTML()}${buildSubsMatrixHTML()}
+    <script>window.onload=()=>{setTimeout(()=>window.print(),400);}<\/script>
     </body></html>`);
   w.document.close();
 }
