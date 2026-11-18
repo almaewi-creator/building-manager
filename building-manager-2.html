@@ -1052,8 +1052,16 @@ async function deleteTransfer(id){
 function getManagerSalary(){
   return state.managerSalary || {amount:1500, startMonth:'2026-09', status:'deferred'};
 }
+const DEFAULT_SALARY_NOTE = 'راتب المدير لشهر سبتمبر 2026 خُصِّص بالكامل لأعمال تطوير المبنى وتحسينه، إسهامًا مني في الارتقاء بالمبنى وخدمة ساكنيه.';
+function managerSalaryCustom(){
+  const m = getManagerSalary();
+  return (m.customText===undefined) ? DEFAULT_SALARY_NOTE : String(m.customText||'').trim();
+}
 function managerSalaryText(){
   const m = getManagerSalary(); const amt = Number(m.amount)||0;
+  // نص مخصص (من الإعدادات) يحل محل النص التلقائي؛ وإن لم يُحدَّد يُستخدم النص الافتراضي أعلاه، وإن تُرك فارغًا عاد النص التلقائي للمستحقات
+  const custom = managerSalaryCustom();
+  if(custom) return custom;
   if(!(amt>0) || !m.startMonth) return '';
   if(m.status==='waived') return `تنازل المدير عن راتبه الشهري (${fmt(amt)} ر.س) اعتبارًا من ${monthLabel(m.startMonth)} — لم يُصرف ولا يُسجَّل التزامًا.`;
   const months = monthsBetweenInclusive(m.startMonth, lastCompletedMonthKey()).length;
@@ -2889,6 +2897,11 @@ function renderSettings(main){
       <div class="field"><label>الحالة</label><select id="f-set-salarystatus"><option value="deferred" ${getManagerSalary().status!=='waived'?'selected':''}>مؤجَّل (حق باقٍ)</option><option value="waived" ${getManagerSalary().status==='waived'?'selected':''}>تنازل</option></select></div>
     </div>
     <div class="field">
+      <label>نص بند راتب المدير في التقارير</label>
+      <textarea id="f-set-salarytext" rows="3" style="width:100%;font-family:inherit;font-size:13.5px;padding:8px;border:1px solid var(--border);border-radius:8px;">${esc(managerSalaryCustom())}</textarea>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;line-height:1.7;">هذا النص يظهر في الكشوف والتقارير. لو مسحته وحفظت يرجع النص التلقائي لمستحقات المدير المؤجلة.</div>
+    </div>
+    <div class="field">
       <label>مصدر الرصيد الافتتاحي</label>
       <input id="f-set-openbalnote" type="text" value="${esc(state.openingBalanceNote||'')}" placeholder="${esc(OPENING_NOTE_DEFAULT)}">
     </div>
@@ -3081,7 +3094,7 @@ async function saveSettings(){
   const obd = document.getElementById('f-set-openbaldate'); if(obd) state.openingBalanceDate = obd.value || '';
   const _tr = document.getElementById('f-set-trust'); if(_tr) state.trustFunds = {amount:Number(_tr.value)||0, note:((document.getElementById('f-set-trustnote')||{}).value||'').trim()};
   const sal = document.getElementById('f-set-salary');
-  if(sal) state.managerSalary = {amount:Number(sal.value)||0, startMonth:(document.getElementById('f-set-salarystart')||{}).value||'', status:(document.getElementById('f-set-salarystatus')||{}).value||'deferred'};
+  if(sal) state.managerSalary = {amount:Number(sal.value)||0, startMonth:(document.getElementById('f-set-salarystart')||{}).value||'', status:(document.getElementById('f-set-salarystatus')||{}).value||'deferred', customText:((document.getElementById('f-set-salarytext')||{}).value||'').trim()};
   const bkf = document.getElementById('f-set-bankfrom'); if(bkf) state.bankActiveFrom = bkf.value || '';
   const mgs = document.getElementById('f-set-mgmtstart'); if(mgs) state.managementStartMonth = mgs.value || '';
   const obn = document.getElementById('f-set-openbalnote'); if(obn) state.openingBalanceNote = obn.value.trim();
