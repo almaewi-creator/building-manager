@@ -3597,7 +3597,7 @@ function buildFinanceReportHTML(){
   let finBoxHTML = '<div class="stmt-totals">';
   if(financeFilter!=='income') finBoxHTML += `<div class="tb"><div class="l">إجمالي المصروفات</div><div class="v tot-red">${fmt(expense)} ر.س</div></div>`;
   if(financeFilter==='all') finBoxHTML += `<div class="tb ${net<0?'':'ok'}"><div class="l">${net<0?'⚠ العجز':net>0?'الفائض':'الصافي'}</div><div class="v ${net<0?'tot-red':'tot-green'}">${fmt(Math.abs(net))} ر.س</div></div>`;
-  if(closing!==null) finBoxHTML += `<div class="tb ${closing<0?'':'neutral'}"><div class="l">رصيد الحساب التراكمي نهاية الشهر</div><div class="v ${closing<0?'tot-red':'tot-neutral'}">${closing<0?'⚠ عجز ':''}${fmt(Math.abs(closing))} ر.س</div><div class="sub">رصيد تاريخي يُحسب بتاريخ الدفع، ولا يعني وجود فائض متاح اليوم</div></div>`;
+  if(closing!==null && financeFilter==='all') finBoxHTML += `<div class="tb ${closing<0?'':'neutral'}"><div class="l">رصيد الحساب نهاية الشهر</div><div class="v ${closing<0?'tot-red':'tot-neutral'}">${closing<0?'⚠ عجز ':''}${fmt(Math.abs(closing))} ر.س</div></div>`;
   finBoxHTML += '</div>';
   const sumRows = (financeFilter!=='income' && sumExp? `<tr class="sum-row"><td colspan="5">إجمالي المصروفات</td><td class="tot-red">${fmt(sumExp)} ر.س</td></tr>` : '') + (financeFilter!=='expense' && sumInc? `<tr class="sum-row"><td colspan="5">إجمالي الإيرادات</td><td class="tot-green">${fmt(sumInc)} ر.س</td></tr>` : '');
   const rows = [...scoped].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
