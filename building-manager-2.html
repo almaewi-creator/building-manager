@@ -1918,6 +1918,10 @@ const STMT_STYLE = `
   .stmt-totals{ display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
   .stmt-totals .tb{ flex:1 1 180px; text-align:center; border:2px solid var(--c-total-bd,#e8b4af); background:var(--c-total-bg,#fdeceb); border-radius:10px; padding:8px 10px; }
   .stmt-totals .tb.ok{ border-color:var(--c-paid,#b7dfc6); background:var(--c-paid-bg,#e9f7ef); }
+  .stmt-totals .tb.neutral{ border-color:#c9ccd3; background:#f4f5f7; }
+  .stmt-totals .tb.neutral .l{ color:#4a4f57 !important; }
+  .tot-neutral{ color:#26282c !important; }
+  .stmt-totals .tb .sub{ font-size:12px !important; color:#6b6f7a !important; margin-top:2px; line-height:1.4; }
   .stmt-totals .tb .l{ font-size:17px !important; color:#4a4f57; }
   .stmt-totals .tb .v{ font-size:30px !important; margin-top:2px; }
   tr.sum-row td{ background:#f6f0e3; font-size:20px !important; border-top:2px solid #16181d !important; color:var(--c-total,#c0392b) !important; }
@@ -3593,7 +3597,7 @@ function buildFinanceReportHTML(){
   let finBoxHTML = '<div class="stmt-totals">';
   if(financeFilter!=='income') finBoxHTML += `<div class="tb"><div class="l">إجمالي المصروفات</div><div class="v tot-red">${fmt(expense)} ر.س</div></div>`;
   if(financeFilter==='all') finBoxHTML += `<div class="tb ${net<0?'':'ok'}"><div class="l">${net<0?'⚠ العجز':net>0?'الفائض':'الصافي'}</div><div class="v ${net<0?'tot-red':'tot-green'}">${fmt(Math.abs(net))} ر.س</div></div>`;
-  if(closing!==null) finBoxHTML += `<div class="tb ${closing<0?'':'ok'}"><div class="l">المتبقي (رصيد الحساب نهاية الشهر)</div><div class="v ${closing<0?'tot-red':'tot-green'}">${closing<0?'⚠ عجز ':''}${fmt(Math.abs(closing))} ر.س</div></div>`;
+  if(closing!==null) finBoxHTML += `<div class="tb ${closing<0?'':'neutral'}"><div class="l">رصيد الحساب التراكمي نهاية الشهر</div><div class="v ${closing<0?'tot-red':'tot-neutral'}">${closing<0?'⚠ عجز ':''}${fmt(Math.abs(closing))} ر.س</div><div class="sub">رصيد تاريخي يُحسب بتاريخ الدفع، ولا يعني وجود فائض متاح اليوم</div></div>`;
   finBoxHTML += '</div>';
   const sumRows = (financeFilter!=='income' && sumExp? `<tr class="sum-row"><td colspan="5">إجمالي المصروفات</td><td class="tot-red">${fmt(sumExp)} ر.س</td></tr>` : '') + (financeFilter!=='expense' && sumInc? `<tr class="sum-row"><td colspan="5">إجمالي الإيرادات</td><td class="tot-green">${fmt(sumInc)} ر.س</td></tr>` : '');
   const rows = [...scoped].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<tr>
